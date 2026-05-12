@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
@@ -69,6 +69,10 @@ class Tournament(Base):
     """
     Time-bounded competition (formerly "events" in the prototype).
     Teams enroll; users on those teams participate through the team link.
+
+    ``end_date`` is derived: last moment of an *inclusive* ``length_days``-day
+    window — same time-of-day as ``start_date``, ``length_days - 1`` calendar
+    days later (e.g. 7 days → ``start_date`` through ``start_date + 6 days``).
     """
 
     __tablename__ = 'tournaments'
@@ -84,6 +88,11 @@ class Tournament(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
+
+    @property
+    def end_date(self) -> datetime:
+        """Inclusive last day: ``start_date`` + ``length_days - 1`` (not persisted)."""
+        return self.start_date + timedelta(days=self.length_days - 1)
 
     team_entries: Mapped[list['TeamTournament']] = relationship(
         back_populates='tournament',
