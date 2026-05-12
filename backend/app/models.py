@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import CheckConstraint, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid, false as sql_false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -49,6 +49,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     )
 
     team: Mapped['Team | None'] = relationship(back_populates='users')
+    posts: Mapped[list['Post']] = relationship(back_populates='author', cascade='all, delete-orphan')
 
 
 class Team(Base):
@@ -152,6 +153,8 @@ class Challenge(Base):
 
     tournament: Mapped['Tournament'] = relationship(back_populates='challenges')
 
+    posts: Mapped[list['Post']] = relationship(back_populates='challenge', cascade='all, delete-orphan')
+
     @property
     def start_date(self) -> datetime:
         """First instant of this challenge's tournament day (not persisted)."""
@@ -188,3 +191,63 @@ class TeamTournament(Base):
 
     team: Mapped['Team'] = relationship(back_populates='tournament_entries')
     tournament: Mapped['Tournament'] = relationship(back_populates='team_entries')
+
+
+class Post(Base):
+    """
+    User submission for a challenge: optional text (``comment``), optional photo(s) via
+    ``photos``. At least one of a non-empty comment or one photo is required — enforce in
+    the API layer (not expressible cleanly as a single-table CHECK).
+
+    ``approved`` gates visibility of user-generated content until a moderator accepts it.
+    """
+
+    __tablename__ = 'posts'
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('users.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    challenge_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('challenges.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    approved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=sql_false()
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    author: Mapped['User'] = relationship(back_populates='posts')
+    challenge: Mapped['Challenge'] = relationship(back_populates='posts')
+    photos: Mapped[list['PostPhoto']] = relationship(
+        back_populates='post',
+        cascade='all, delete-orphan',
+        order_by='PostPhoto.sort_order',
+    )
+
+
+class PostPhoto(Base):
+    """One image attached to a post (ordering via ``sort_order``)."""
+
+    __tablename__ = 'post_photos'
+    __table_args__ = (CheckConstraint('sort_order >= 0', name='ck_post_photos_sort_order_nonnegative'),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    post_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('posts.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    storage_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
+
+    post: Mapped['Post'] = relationship(back_populates='photos')
