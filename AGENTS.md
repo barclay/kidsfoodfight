@@ -6,6 +6,13 @@
 
 **Target Users:** Families with children ages 6–16. Interface must be usable by kids and adults alike.
 
+## Project rules
+ - Don’t assume. Don’t hide confusion. Surface tradeoffs.
+ - Minimum code that solves the problem. Nothing speculative.
+ - Touch only what you must. Clean up only your own mess.
+ - Define success criteria. Loop until verified.
+ - This application is targeting families with children, so any and all user-generated input must have an approval mechanism before it can be displayed.
+
 ---
 
 ## Repository Structure
@@ -148,6 +155,21 @@ docker compose up --build
 - Backend reloads automatically on file changes (uvicorn `--reload`)
 - Postgres data persists in a named Docker volume across container restarts
 
+### Backend (Local — conda)
+
+A conda environment is provided for local development, running migrations, and IDE integration.
+
+```bash
+# First time
+conda env create -f backend/environment.yml
+
+# Activate
+conda activate kff-backend
+
+# Update after requirements change
+conda env update -f backend/environment.yml --prune
+```
+
 ### Mobile App
 
 ```bash
@@ -162,7 +184,11 @@ npx expo start
 ### Running Migrations
 
 ```bash
+# Inside Docker
 docker compose exec backend alembic upgrade head
+
+# Locally (with conda env active and Docker DB running)
+cd backend && alembic upgrade head
 ```
 
 ---
