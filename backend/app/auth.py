@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import Depends, Request, Response
-from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
+from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, exceptions
 from fastapi_users.authentication import AuthenticationBackend, BearerTransport, JWTStrategy
 from fastapi_users.db import SQLAlchemyUserDatabase
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +24,16 @@ async def get_user_db(session: AsyncSession = Depends(get_db)):
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     reset_password_token_secret = settings.secret_key
     verification_token_secret = settings.secret_key
+
+    async def validate_password(self, password: str, user: User | object) -> None:
+        if len(password) < 6:
+            raise exceptions.InvalidPasswordException('must be at least 6 characters')
+        if ' ' in password:
+            raise exceptions.InvalidPasswordException('must not contain spaces')
+        if not any(c.isalpha() for c in password):
+            raise exceptions.InvalidPasswordException('must contain at least one letter')
+        if not any(c.isdigit() for c in password):
+            raise exceptions.InvalidPasswordException('must contain at least one digit')
 
     async def on_after_register(self, user: User, request: Optional[Request] = None) -> None:
         print(f'[auth] User registered: {user.id} ({user.email})')
@@ -65,3 +75,4 @@ auth_backend = AuthenticationBackend(
 fastapi_users = FastAPIUsers[User, uuid.UUID](get_user_manager, [auth_backend])
 
 current_active_user = fastapi_users.current_user(active=True)
+current_superuser = fastapi_users.current_user(active=True, superuser=True)

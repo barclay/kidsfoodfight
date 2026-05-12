@@ -7,6 +7,7 @@ A family wellness game that turns healthy eating and fitness into a fun, competi
 ```
 kidsfoodfight/
 ├── app/        # React Native (Expo) — iOS & Android
+├── frontend/   # Vite + React admin console (superusers)
 ├── backend/    # FastAPI + PostgreSQL
 └── AGENTS.md   # Project guide for AI agents
 ```
@@ -40,3 +41,18 @@ npx expo start
 ```
 
 Scan the QR with Expo Go, or press `i` / `a` for simulators.
+
+### Admin web (moderation / ops)
+
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
+
+Open `http://localhost:5173`. Sign in with a user that has `is_superuser = true` in the database (JWT is the same as the mobile login). Grant the first admin in Postgres, for example:
+
+```sql
+UPDATE users SET is_superuser = true WHERE email = 'you@example.com';
+```

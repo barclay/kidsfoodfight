@@ -1,0 +1,12 @@
+---
+description: Vite + React admin (frontend/) conventions
+globs: frontend/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Admin frontend (Vite + React)
+
+- Strict TypeScript; use `import type { ... }` for type-only imports when `verbatimModuleSyntax` is on.
+- Functional components only. Prefer small page-level components.
+- Call the API via `src/api.ts` (`apiFetch`, `login`); never hardcode the base URL (use `VITE_API_URL`).
+- Admin routes require a superuser JWT; handle 401 by clearing the token and redirecting to `/login`.

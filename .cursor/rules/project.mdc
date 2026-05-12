@@ -7,6 +7,7 @@ alwaysApply: true
 
 ## Monorepo Layout
 - `app/` — React Native (Expo) mobile app
+- `frontend/` — Vite + React admin console (calls `/api/v1/admin/*`, superuser JWT)
 - `backend/` — FastAPI + PostgreSQL API
 - `kff_prototype/` — Reference ONLY. Never copy code from here.
 
@@ -17,6 +18,7 @@ alwaysApply: true
 
 ## API Conventions
 - Base prefix: `/api/v1`
+- Admin prefix: `/api/v1/admin` (requires active superuser JWT)
 - Auth: JWT Bearer token
 - Error shape: `{ "detail": "..." }` (FastAPI default)
 - Pagination: `?skip=0&limit=20` on list endpoints

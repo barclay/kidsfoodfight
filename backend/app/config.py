@@ -9,7 +9,11 @@ class Settings(BaseSettings):
     algorithm: str = 'HS256'
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
 
-    cors_origins: list[str] = ['http://localhost:8081', 'http://localhost:3000']
+    cors_origins: list[str] = [
+        'http://localhost:8081',
+        'http://localhost:3000',
+        'http://localhost:5173',
+    ]
 
 
 settings = Settings()

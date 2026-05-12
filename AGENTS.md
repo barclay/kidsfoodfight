@@ -23,6 +23,7 @@ This is a monorepo containing:
 kidsfoodfight/
 ├── AGENTS.md                  # This file — project guide for AI agents
 ├── app/                       # React Native (Expo) mobile app — iOS & Android
+├── frontend/                  # Vite + React admin UI (JWT superusers; calls /api/v1/admin/*)
 ├── backend/                   # FastAPI + PostgreSQL backend
 │   ├── app/                   # Python application code
 │   ├── Dockerfile
@@ -42,6 +43,7 @@ kidsfoodfight/
 | Layer | Technology |
 |---|---|
 | Mobile App | React Native (Expo), TypeScript, Expo Router |
+| Admin Web | Vite, React, TypeScript, React Router (same JWT as API; `is_superuser` required) |
 | Backend API | FastAPI (Python 3.12+) |
 | Database | PostgreSQL 16 |
 | ORM | SQLAlchemy 2.x (async) |
