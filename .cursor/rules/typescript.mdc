@@ -1,0 +1,14 @@
+---
+description: TypeScript/React Native coding standards
+globs: app/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# TypeScript / React Native Standards
+
+- Strict mode (`"strict": true`). No `any`.
+- Functional components only. No class components.
+- Use `StyleSheet.create` for all styles — no inline style objects.
+- Minimum 48px touch targets on all interactive elements.
+- Use `react-native-safe-area-context` (`SafeAreaView` with `edges` prop) on every screen.
+- Brand colors must come from `src/lib/colors.ts` — no hardcoded hex values in components.

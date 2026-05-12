@@ -1,0 +1,25 @@
+---
+description: Core project conventions for Kids Food Fight monorepo
+alwaysApply: true
+---
+
+# Kids Food Fight — Project Rules
+
+## Monorepo Layout
+- `app/` — React Native (Expo) mobile app
+- `backend/` — FastAPI + PostgreSQL API
+- `kff_prototype/` — Reference ONLY. Never copy code from here.
+
+## Schema Design
+- The database schema is being designed from scratch. Do not derive models from `kff_prototype`.
+- All SQLAlchemy models live in `backend/app/models.py`.
+- Pydantic schemas live in `backend/app/schemas.py`.
+
+## API Conventions
+- Base prefix: `/api/v1`
+- Auth: JWT Bearer token
+- Error shape: `{ "detail": "..." }` (FastAPI default)
+- Pagination: `?skip=0&limit=20` on list endpoints
+
+## Secrets
+- Never commit `.env` files. Use `.env.example` with placeholder values only.

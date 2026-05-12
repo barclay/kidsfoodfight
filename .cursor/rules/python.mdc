@@ -1,0 +1,13 @@
+---
+description: Python/FastAPI coding standards
+globs: backend/**/*.py
+alwaysApply: false
+---
+
+# Python Standards
+
+- Python 3.12+. Use built-in generics (`list[str]`, `dict[str, int]`, `X | None`).
+- All DB operations must be `async`/`await` using SQLAlchemy async session.
+- Use `Mapped` / `mapped_column` (SQLAlchemy 2.x declarative style) for all models.
+- Type-hint every function signature. No bare `Any`.
+- Keep routers thin — business logic belongs in a service layer, not inline in route handlers.
