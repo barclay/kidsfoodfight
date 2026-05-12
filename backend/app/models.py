@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime, timedelta, timezone
+from enum import StrEnum
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
+from sqlalchemy import CheckConstraint, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -11,6 +12,13 @@ from app.invite_code import generate_invite_code
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+class ChallengeType(StrEnum):
+    FOOD = 'food'
+    FITNESS = 'fitness'
+    SHOPPING = 'shopping'
+    GAME = 'game'
 
 
 class User(SQLAlchemyBaseUserTableUUID, Base):
@@ -98,6 +106,61 @@ class Tournament(Base):
         back_populates='tournament',
         cascade='all, delete-orphan',
     )
+    challenges: Mapped[list['Challenge']] = relationship(
+        back_populates='tournament',
+        cascade='all, delete-orphan',
+        order_by='Challenge.day',
+    )
+
+
+class Challenge(Base):
+    """
+    A task within a tournament (prototype ``event_challenges`` / global challenges).
+
+    ``day`` is 1-based within the tournament (day 1 aligns with ``tournament.start_date``).
+    ``start_date`` / ``end_date`` are derived from ``tournament.start_date`` and ``day`` so
+    schedule stays consistent with the tournament clock.
+
+    Persisted ``challenge_type`` matches the prototype's ``type`` column (``food``, ``fitness``,
+    ``shopping``, ``game``). Enforce ``day <= tournament.length_days`` in application logic.
+    """
+
+    __tablename__ = 'challenges'
+    __table_args__ = (
+        CheckConstraint('day >= 1', name='ck_challenges_day_positive'),
+        CheckConstraint('points >= 0', name='ck_challenges_points_nonnegative'),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    tournament_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('tournaments.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    challenge_type: Mapped[ChallengeType] = mapped_column(
+        SAEnum(ChallengeType, values_callable=lambda x: [e.value for e in x], native_enum=False, length=32),
+        nullable=False,
+    )
+    points: Mapped[int] = mapped_column(Integer, nullable=False)
+    day: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    tournament: Mapped['Tournament'] = relationship(back_populates='challenges')
+
+    @property
+    def start_date(self) -> datetime:
+        """First instant of this challenge's tournament day (not persisted)."""
+        return self.tournament.start_date + timedelta(days=self.day - 1)
+
+    @property
+    def end_date(self) -> datetime:
+        """Last representable instant before the next tournament day boundary (not persisted)."""
+        return self.tournament.start_date + timedelta(days=self.day) - timedelta.resolution
 
 
 class TeamTournament(Base):
