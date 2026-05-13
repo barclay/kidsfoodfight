@@ -1,4 +1,6 @@
 import type { UserMe } from '../types/userMe';
+import { ensureImageUnderMaxBytes } from './ensureImageUnderMaxBytes';
+import { postFormDataWithProgress } from './xhrFormUpload';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 
@@ -23,24 +25,36 @@ function parseDetail(raw: unknown): string {
   return 'Request failed';
 }
 
-export async function uploadProfilePhoto(token: string, imageUri: string): Promise<UserMe> {
+export async function uploadProfilePhoto(
+  token: string,
+  imageUri: string,
+  onProgress?: (fraction: number) => void,
+): Promise<UserMe> {
+  const normalizedUri = await ensureImageUnderMaxBytes(imageUri);
   const form = new FormData();
   form.append('file', {
-    uri: imageUri,
+    uri: normalizedUri,
     name: 'profile.jpg',
     type: 'image/jpeg',
   } as unknown as Blob);
 
-  const response = await fetch(`${API_BASE_URL}/me/profile-photo`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
+  const { ok, json } = await postFormDataWithProgress(
+    `${API_BASE_URL}/me/profile-photo`,
+    form,
+    { Authorization: `Bearer ${token}` },
+    (loaded, total, lengthComputable) => {
+      if (!onProgress) {
+        return;
+      }
+      if (lengthComputable && total > 0) {
+        onProgress(loaded / total);
+      } else {
+        onProgress(-1);
+      }
     },
-    body: form,
-  });
+  );
 
-  const json: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
+  if (!ok) {
     throw new Error(parseDetail(json));
   }
   if (typeof json !== 'object' || json === null || typeof (json as UserMe).id !== 'string') {

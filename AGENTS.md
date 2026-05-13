@@ -12,6 +12,7 @@
  - Touch only what you must. Clean up only your own mess.
  - Define success criteria. Loop until verified.
  - This application is targeting families with children, so any and all user-generated input must have an approval mechanism before it can be displayed.
+ - **Media files:** Do **not** delete uploaded media automatically (seeds, DB cascades, jobs, admin tools, etc.). Dropping database rows is fine where product allows it, but **bytes on disk** (e.g. under `data/uploads/`) or in object storage are left in place for **humans** to review, archive, or remove deliberately. Never add "cleanup" that erases media without explicit human action.
  - **Backend Python:** use the **conda** env `kff-backend` from `backend/environment.yml` only. Do **not** create or rely on a `venv` / `.venv` under `backend/` for this project (avoids drift from Docker/conda and PEP 668 issues on macOS).
 
 ---
@@ -92,7 +93,7 @@ Character assets live in `kff_prototype/attached_assets/`.
 5. **Collective Achievement** — emphasize family/team wins over individual metrics
 
 ### Mobile Conventions
-- Bottom tab bar (5 items max): Home, Challenges, Log Activity, Family, Profile
+- Bottom tab bar: Home, Challenges, Family, Profile
 - Minimum 48px touch targets throughout
 - Pull-to-refresh on feeds
 - Bottom sheets for detailed forms
@@ -260,4 +261,4 @@ conda run -n kff-backend --no-capture-output bash -lc 'cd backend && alembic upg
 - **USDA FoodData Central API** — auto nutrition lookup (free, 1k req/hr)
   - Key signup: https://fdc.nal.usda.gov/api-key-signup.html
 - **Push notifications** — Expo Notifications
-- **Media storage** — TBD (S3 or similar); prototype used Google Drive via Replit connector
+- **Media storage** — TBD (S3 or similar); prototype used Google Drive via Replit connector. **Policy:** never automatically delete stored media files; that is human-only (see Project rules).

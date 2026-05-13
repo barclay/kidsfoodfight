@@ -25,8 +25,9 @@ from sqlalchemy.orm import selectinload
 from app.auth import current_active_user
 from app.config import settings
 from app.database import get_db
+from app.obscene_language import ensure_text_is_clean
 from app.media_paths import resolved_media_file
-from app.models import Challenge, Post, PostPhoto, User
+from app.models import Challenge, Post, PostPhoto, Team, User
 from app.post_photo_tasks import fill_post_photo_description
 from app.schemas import FeedPostCreated, FeedPostItem, FeedPostPhoto
 from PIL import UnidentifiedImageError
@@ -38,6 +39,7 @@ router = APIRouter(tags=['feed'])
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 _MAX_PHOTO_BYTES = 8 * 1024 * 1024
+_MAX_PHOTOS_PER_POST = 6
 _CONTENT_TYPE_SUFFIX: dict[str, str] = {
     'image/jpeg': '.jpg',
     'image/png': '.png',
@@ -95,8 +97,23 @@ async def list_feed_posts(
     ch_rows = await db.execute(select(Challenge.id, Challenge.title).where(Challenge.id.in_(challenge_ids)))
     titles = {row.id: row.title for row in ch_rows.all()}
 
-    u_rows = await db.execute(select(User.id, User.display_name).where(User.id.in_(user_ids)))
-    names = {row.id: row.display_name for row in u_rows.all()}
+    u_result = await db.execute(
+        select(User.id, User.display_name, User.profile_photo_storage_url, Team.name.label('team_name'))
+        .outerjoin(Team, User.team_id == Team.id)
+        .where(User.id.in_(user_ids)),
+    )
+    names: dict[uuid.UUID, str] = {}
+    author_profile_photo_url: dict[uuid.UUID, str | None] = {}
+    author_team_name: dict[uuid.UUID, str | None] = {}
+    for row in u_result.mappings().all():
+        uid = row['id']
+        names[uid] = row['display_name']
+        author_profile_photo_url[uid] = (
+            _media_url(request, row['profile_photo_storage_url'])
+            if row['profile_photo_storage_url']
+            else None
+        )
+        author_team_name[uid] = row['team_name']
 
     out: list[FeedPostItem] = []
     for post in posts:
@@ -114,6 +131,8 @@ async def list_feed_posts(
                 id=post.id,
                 created_at=post.created_at,
                 author_display_name=names.get(post.user_id, 'Unknown'),
+                author_profile_photo_url=author_profile_photo_url.get(post.user_id),
+                author_team_name=author_team_name.get(post.user_id),
                 challenge_title=titles.get(post.challenge_id, 'Challenge'),
                 comment=post.comment,
                 approved=post.approved,
@@ -155,6 +174,11 @@ async def create_feed_post(
         )
 
     upload_list = list(files) if files else []
+    if len(upload_list) > _MAX_PHOTOS_PER_POST:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f'At most {_MAX_PHOTOS_PER_POST} images per post',
+        )
     c = comment.strip() if comment else ''
     comment_val: str | None = c if c else None
     if not upload_list and not comment_val:
@@ -162,6 +186,9 @@ async def create_feed_post(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail='Provide a non-empty comment and/or at least one image',
         )
+
+    if comment_val is not None:
+        ensure_text_is_clean(comment_val)
 
     post = Post(
         user_id=user.id,

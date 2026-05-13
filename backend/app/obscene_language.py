@@ -70,7 +70,7 @@ def _build_scanners(terms: list[str]) -> list[tuple[re.Pattern[str], str]]:
 _SCANNERS: list[tuple[re.Pattern[str], str]] = _build_scanners(_read_terms(_WORD_LIST_PATH))
 
 
-def check_obscene_language(text: str) -> ObsceneLanguageCheck:
+def check_obscene_language(text: str | None) -> ObsceneLanguageCheck:
     """Return whether ``text`` matches any blocked word or phrase (English list)."""
     if not text:
         return ObsceneLanguageCheck(is_clean=True, matched_term=None)
@@ -80,8 +80,13 @@ def check_obscene_language(text: str) -> ObsceneLanguageCheck:
     return ObsceneLanguageCheck(is_clean=True, matched_term=None)
 
 
-def ensure_text_is_clean(text: str) -> None:
-    """Raise :class:`ObsceneLanguageError` if ``text`` matches the blocked list."""
+def ensure_text_is_clean(text: str | None) -> None:
+    """Raise :class:`ObsceneLanguageError` if non-blank ``text`` matches the blocked list.
+
+    ``None`` and whitespace-only strings are treated as clean (nothing to scan).
+    """
+    if text is None or not text.strip():
+        return
     result = check_obscene_language(text)
     if not result.is_clean:
         raise ObsceneLanguageError(matched_term=result.matched_term)

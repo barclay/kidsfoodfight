@@ -1,7 +1,7 @@
 """Admin-only REST API (requires JWT for an active superuser)."""
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi_users import exceptions as fu_exceptions
@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.auth import UserManager, current_superuser, get_user_manager
 from app.database import get_db
 from app.models import Challenge, ChallengeType, Post, PostPhoto, Team, TeamTournament, Tournament, User
+from app.obscene_language import ensure_text_is_clean
 from app.schemas import UserUpdate
 from app.schemas_admin import (
     AdminPostDetail,
@@ -133,6 +134,7 @@ async def admin_list_teams(
 
 @router.post('/teams', response_model=AdminTeamDetail, status_code=status.HTTP_201_CREATED)
 async def admin_create_team(db: DbSession, _: SuperUser, body: AdminTeamCreate) -> AdminTeamDetail:
+    ensure_text_is_clean(body.name)
     team = Team(name=body.name)
     db.add(team)
     await db.flush()
@@ -228,6 +230,7 @@ async def admin_patch_team(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Team not found')
     data = body.model_dump(exclude_unset=True)
     if 'name' in data:
+        ensure_text_is_clean(data['name'])
         team.name = data['name']
     await db.flush()
     stmt = _team_detail_stmt(team_id)
@@ -301,6 +304,11 @@ async def admin_list_posts(
     _: SuperUser,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
+    user_id: uuid.UUID | None = Query(None, description='Filter by post author'),
+    challenge_id: uuid.UUID | None = Query(None, description='Filter by challenge'),
+    approved: bool | None = Query(None),
+    sort_by: Literal['created_at', 'author', 'challenge', 'photos', 'approved'] = Query('created_at'),
+    sort_dir: Literal['asc', 'desc'] = Query('desc'),
 ) -> list[AdminPostListItem]:
     photo_count_sq = (
         select(func.count(PostPhoto.id))
@@ -317,10 +325,28 @@ async def admin_list_posts(
         )
         .join(User, Post.user_id == User.id)
         .join(Challenge, Post.challenge_id == Challenge.id)
-        .order_by(Post.created_at.desc())
-        .offset(skip)
-        .limit(limit)
     )
+    if user_id is not None:
+        stmt = stmt.where(Post.user_id == user_id)
+    if challenge_id is not None:
+        stmt = stmt.where(Post.challenge_id == challenge_id)
+    if approved is not None:
+        stmt = stmt.where(Post.approved.is_(approved))
+
+    ascending = sort_dir == 'asc'
+    if sort_by == 'created_at':
+        order_primary = Post.created_at.asc() if ascending else Post.created_at.desc()
+    elif sort_by == 'author':
+        order_primary = User.display_name.asc() if ascending else User.display_name.desc()
+    elif sort_by == 'challenge':
+        order_primary = Challenge.day.asc() if ascending else Challenge.day.desc()
+    elif sort_by == 'photos':
+        order_primary = photo_count_sq.asc() if ascending else photo_count_sq.desc()
+    else:
+        order_primary = Post.approved.asc() if ascending else Post.approved.desc()
+
+    stmt = stmt.order_by(order_primary, Post.id.desc()).offset(skip).limit(limit)
+
     result = await db.execute(stmt)
     rows = result.all()
     post_ids = [row.Post.id for row in rows]
@@ -375,6 +401,15 @@ async def admin_delete_all_posts(db: DbSession, _: SuperUser) -> AdminPostsBulkD
     return AdminPostsBulkDeleteResult(deleted=deleted)
 
 
+@router.delete('/posts/{post_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_post(db: DbSession, _: SuperUser, post_id: uuid.UUID) -> None:
+    post = await db.get(Post, post_id)
+    if post is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Post not found')
+    await db.delete(post)
+    await db.flush()
+
+
 @router.get('/posts/{post_id}', response_model=AdminPostDetail)
 async def admin_get_post(db: DbSession, _admin: SuperUser, post_id: uuid.UUID) -> AdminPostDetail:
     stmt = (
@@ -424,6 +459,7 @@ async def admin_patch_post(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Post not found')
     data = body.model_dump(exclude_unset=True)
     if 'comment' in data:
+        ensure_text_is_clean(data['comment'])
         post.comment = data['comment']
     if 'approved' in data:
         post.approved = data['approved']

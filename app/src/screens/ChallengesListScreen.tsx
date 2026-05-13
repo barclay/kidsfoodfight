@@ -3,6 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   RefreshControl,
   SectionList,
@@ -152,42 +153,48 @@ export default function ChallengesListScreen() {
         </View>
       ) : null}
 
-      {loading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color={Colors.orange} />
-        </View>
-      ) : sections.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>No challenges right now</Text>
-          <Text style={styles.emptyBody}>
-            Join a team enrolled in an active tournament to see challenges here. Completed challenges
-            disappear from this list. Days follow your profile time zone.
-          </Text>
-        </View>
-      ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(c) => c.id}
-          renderItem={({ item }) => (
-            <ChallengeRow
-              item={item}
-              onPress={() => navigation.navigate('ChallengeDetail', { challenge: item })}
-            />
-          )}
-          renderSectionHeader={({ section: { title } }) => (
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle} numberOfLines={2}>
-                {title}
+      <SectionList
+        sections={sections}
+        keyExtractor={(c) => c.id}
+        renderItem={({ item }) => (
+          <ChallengeRow
+            item={item}
+            onPress={() => navigation.navigate('ChallengeDetail', { challenge: item })}
+          />
+        )}
+        renderSectionHeader={({ section: { title } }) => (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle} numberOfLines={2}>
+              {title}
+            </Text>
+          </View>
+        )}
+        ListEmptyComponent={
+          loading ? (
+            <View style={styles.emptyStateFill}>
+              <ActivityIndicator size="large" color={Colors.orange} />
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyTitle}>No challenges right now</Text>
+              <Text style={styles.emptyBody}>
+                Join a team enrolled in an active tournament to see challenges here. Completed challenges
+                disappear from this list. Days follow your profile time zone.
               </Text>
             </View>
-          )}
-          stickySectionHeadersEnabled
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={Colors.orange} />
-          }
-          contentContainerStyle={styles.listContent}
-        />
-      )}
+          )
+        }
+        stickySectionHeadersEnabled
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={Colors.orange}
+            colors={Platform.OS === 'android' ? [Colors.orange] : undefined}
+          />
+        }
+        contentContainerStyle={[styles.listContent, sections.length === 0 && styles.listContentGrow]}
+      />
     </SafeAreaView>
   );
 }
@@ -225,15 +232,19 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 14,
   },
-  centered: {
-    flex: 1,
+  emptyStateFill: {
+    flexGrow: 1,
+    minHeight: 280,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 48,
   },
   empty: {
-    flex: 1,
+    flexGrow: 1,
+    minHeight: 280,
     paddingHorizontal: 28,
     justifyContent: 'center',
+    paddingVertical: 24,
   },
   emptyTitle: {
     fontSize: 18,
@@ -250,6 +261,9 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 24,
+  },
+  listContentGrow: {
+    flexGrow: 1,
   },
   sectionHeader: {
     backgroundColor: Colors.background,

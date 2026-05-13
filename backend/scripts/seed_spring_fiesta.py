@@ -7,6 +7,9 @@ Runs when ``SEED_SPRING_FIESTA`` is ``1``, ``true``, ``yes``, or ``on`` (case-in
 
 Uses fixed tournament id ``cef90879-0f14-40dd-a424-e3a6005772ed`` for stable re-runs.
 
+If challenge rows must be replaced (wrong count), existing ``posts`` for those challenges are
+removed by the database (``ON DELETE CASCADE`` from ``challenges`` → ``posts`` → ``post_photos``).
+
 Prototype access code ``SPRING2026`` is not stored (no column yet); join flow TBD.
 """
 
@@ -249,10 +252,9 @@ async def _seed(session: AsyncSession) -> None:
 
     if post_count and post_count > 0:
         print(
-            '[seed_spring_fiesta] Posts exist for Spring Fiesta challenges; '
-            'refusing to replace challenges (would delete posts). Update manually if needed.'
+            f'[seed_spring_fiesta] Replacing Spring Fiesta challenges; '
+            f'{post_count} existing post(s) will be removed (CASCADE from challenges).'
         )
-        return
 
     await session.execute(delete(Challenge).where(Challenge.tournament_id == SPRING_FIESTA_TOURNAMENT_ID))
 

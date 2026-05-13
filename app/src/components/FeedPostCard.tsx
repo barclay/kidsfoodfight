@@ -25,6 +25,12 @@ function formatFeedTimestamp(iso: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+function formatAuthorAttribution(item: FeedPostItem): string {
+  const name = item.author_display_name.trim() || '?';
+  const team = item.author_team_name?.trim();
+  return team ? `${team} - ${name}` : name;
+}
+
 type Props = {
   item: FeedPostItem;
   authHeader: Record<string, string> | undefined;
@@ -48,14 +54,23 @@ export function FeedPostCard({ item, authHeader }: Props) {
   return (
     <View style={styles.post}>
       <View style={styles.postHeader}>
-        <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarLetter}>
-            {item.author_display_name.trim().charAt(0).toUpperCase() || '?'}
-          </Text>
+        <View style={styles.avatarWrap}>
+          {item.author_profile_photo_url ? (
+            <Image
+              source={{ uri: item.author_profile_photo_url, headers: authHeader }}
+              style={styles.avatarImg}
+            />
+          ) : (
+            <View style={styles.avatarFallback}>
+              <Text style={styles.avatarLetter}>
+                {item.author_display_name.trim().charAt(0).toUpperCase() || '?'}
+              </Text>
+            </View>
+          )}
         </View>
         <View style={styles.headerText}>
-          <Text style={styles.authorName} numberOfLines={1}>
-            {item.author_display_name}
+          <Text style={styles.authorName} numberOfLines={2}>
+            {formatAuthorAttribution(item)}
           </Text>
           <Text style={styles.challengeLine} numberOfLines={1}>
             {item.challenge_title}
@@ -121,7 +136,7 @@ export function FeedPostCard({ item, authHeader }: Props) {
         </View>
         {item.comment ? (
           <Text style={styles.caption}>
-            <Text style={styles.captionAuthor}>{item.author_display_name} </Text>
+            <Text style={styles.captionAuthor}>{formatAuthorAttribution(item)} </Text>
             {item.comment}
           </Text>
         ) : null}
@@ -144,10 +159,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 8,
   },
-  avatarPlaceholder: {
+  avatarWrap: {
     width: 40,
     height: 40,
     borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: Colors.border,
+  },
+  avatarImg: {
+    width: '100%',
+    height: '100%',
+  },
+  avatarFallback: {
+    flex: 1,
     backgroundColor: Colors.lime,
     alignItems: 'center',
     justifyContent: 'center',

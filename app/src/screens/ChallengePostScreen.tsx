@@ -2,7 +2,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { useLayoutEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
   Image,
   Platform,
@@ -15,20 +14,21 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
-import { createFeedPost } from '../lib/feedPostsApi';
+import { useUploadToast } from '../context/UploadToastContext';
+import { MAX_FEED_POST_PHOTOS, createFeedPost } from '../lib/feedPostsApi';
 import type { ChallengesStackParamList } from '../navigation/types';
 import { Colors } from '../lib/colors';
 
-const MAX_PHOTOS = 6;
+const MAX_PHOTOS = MAX_FEED_POST_PHOTOS;
 
 type Props = NativeStackScreenProps<ChallengesStackParamList, 'ChallengePost'>;
 
 export default function ChallengePostScreen({ navigation, route }: Props) {
   const { challengeId, challengeTitle } = route.params;
   const { token } = useAuth();
+  const { enqueueUpload } = useUploadToast();
   const [uris, setUris] = useState<string[]>([]);
   const [comment, setComment] = useState('');
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useLayoutEffect(() => {
@@ -90,7 +90,7 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
     setUris((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const submit = async () => {
+  const submit = () => {
     if (!token) {
       return;
     }
@@ -99,33 +99,35 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
       setError('Add at least one photo or a short note for your submission.');
       return;
     }
-    setSubmitting(true);
+    const snapshot = {
+      challengeId,
+      comment: trimmed || undefined,
+      fileUris: [...uris],
+    };
+    enqueueUpload({
+      title: 'Posting your challenge',
+      successMessage: 'Submission sent',
+      run: (onProgress) => createFeedPost(token, snapshot, onProgress),
+    });
+    setUris([]);
+    setComment('');
     setError(null);
-    try {
-      await createFeedPost(token, {
-        challengeId,
-        comment: trimmed || undefined,
-        fileUris: uris,
-      });
-      navigation.popToTop();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not submit.');
-    } finally {
-      setSubmitting(false);
-    }
+    navigation.popToTop();
   };
 
   if (!token) {
     return null;
   }
 
-  const canSubmit = (uris.length > 0 || comment.trim().length > 0) && !submitting;
+  const canSubmit = uris.length > 0 || comment.trim().length > 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>
-          Add photos and/or a caption. Your post is reviewed before it appears on the feed.
+          Add up to {MAX_PHOTOS} photos and/or a caption. On your phone you can select several photos at
+          once from the library (where supported), take more with the camera, or tap Choose again to add
+          more. Your post is reviewed before it appears on the feed.
         </Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -150,7 +152,12 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
           {uris.length}/{MAX_PHOTOS} photos
         </Text>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.thumbRow}>
+        <ScrollView
+          horizontal
+          nestedScrollEnabled
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.thumbRow}
+        >
           {uris.map((uri, index) => (
             <View key={`${uri}-${index}`} style={styles.thumbWrap}>
               <Image source={{ uri }} style={styles.thumb} />
@@ -169,7 +176,7 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
           placeholder="Tell us what you did…"
           placeholderTextColor={Colors.textMuted}
           multiline
-          editable={!submitting}
+          editable
         />
       </ScrollView>
 
@@ -180,14 +187,10 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
             !canSubmit && styles.submitDisabled,
             pressed && canSubmit && styles.submitPressed,
           ]}
-          onPress={() => void submit()}
+          onPress={submit}
           disabled={!canSubmit}
         >
-          {submitting ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.submitText}>Submit to challenge</Text>
-          )}
+          <Text style={styles.submitText}>Submit to challenge</Text>
         </Pressable>
       </View>
     </SafeAreaView>

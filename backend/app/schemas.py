@@ -102,6 +102,10 @@ class FeedPostItem(BaseModel):
     id: uuid.UUID
     created_at: datetime
     author_display_name: str
+    #: Same ``/api/v1/media/...`` JWT-protected URL pattern as post photos; ``None`` if unset.
+    author_profile_photo_url: str | None = None
+    #: Poster team name when ``user.team_id`` is set; ``None`` if not on a team.
+    author_team_name: str | None = None
     challenge_title: str
     comment: str | None
     approved: bool

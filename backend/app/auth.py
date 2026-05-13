@@ -11,6 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_db
 from app.models import User
+from app.obscene_language import ensure_text_is_clean
+from app.schemas import UserCreate, UserUpdate
 
 
 # ── Database adapter ──────────────────────────────────────────────────────────
@@ -47,6 +49,26 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         response: Optional[Response] = None,
     ) -> None:
         await self.user_db.update(user, {'last_seen_at': datetime.now(timezone.utc)})
+
+    async def create(
+        self,
+        user_create: UserCreate,
+        safe: bool = False,
+        request: Optional[Request] = None,
+    ) -> User:
+        ensure_text_is_clean(user_create.display_name)
+        return await super().create(user_create, safe=safe, request=request)
+
+    async def update(
+        self,
+        user_update: UserUpdate,
+        user: User,
+        safe: bool = False,
+        request: Optional[Request] = None,
+    ) -> User:
+        if user_update.display_name is not None:
+            ensure_text_is_clean(user_update.display_name)
+        return await super().update(user_update, user, safe=safe, request=request)
 
 
 async def get_user_manager(user_db=Depends(get_user_db)):

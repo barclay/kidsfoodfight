@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useUploadToast } from '../context/UploadToastContext';
 import { uploadProfilePhoto } from '../lib/profilePhotoApi';
 import type { ProfileStackParamList } from '../navigation/types';
 import { Colors } from '../lib/colors';
@@ -23,18 +24,44 @@ function clamp(n: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, n));
 }
 
+function displaySize(imgNatural: { w: number; h: number }, side: number, zoom: number): { w: number; h: number } {
+  if (side <= 0) {
+    return { w: 0, h: 0 };
+  }
+  const base = side / Math.min(imgNatural.w, imgNatural.h);
+  const scale = base * zoom;
+  return { w: imgNatural.w * scale, h: imgNatural.h * scale };
+}
+
+function touchDistance(a: { pageX: number; pageY: number }, b: { pageX: number; pageY: number }): number {
+  const dx = a.pageX - b.pageX;
+  const dy = a.pageY - b.pageY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 4;
+
 export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
   const { imageUri } = route.params;
   const { token, refreshMe } = useAuth();
+  const { enqueueUpload } = useUploadToast();
   const [layout, setLayout] = useState({ w: 0, h: 0 });
   const [imgNatural, setImgNatural] = useState<{ w: number; h: number } | null>(null);
   const [zoom, setZoom] = useState(1);
+  const zoomRef = useRef(1);
+  zoomRef.current = zoom;
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const panRef = useRef(pan);
   panRef.current = pan;
-  const dragOrigin = useRef({ x: 0, y: 0 });
+  const pinchAnchorRef = useRef<{ startDist: number; startZoom: number } | null>(null);
+  const lastSinglePageRef = useRef<{ x: number; y: number } | null>(null);
+  const wasMultiTouchRef = useRef(false);
+  const cropWindowRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
+  const cropLayoutRef = useRef<View>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const didCenterRef = useRef(false);
 
   const side = useMemo(() => {
     if (layout.w <= 0 || layout.h <= 0) {
@@ -50,35 +77,64 @@ export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
     if (!imgNatural || side <= 0) {
       return { w: 0, h: 0 };
     }
-    const base = side / Math.min(imgNatural.w, imgNatural.h);
-    const scale = base * zoom;
-    return { w: imgNatural.w * scale, h: imgNatural.h * scale };
+    return displaySize(imgNatural, side, zoom);
   }, [imgNatural, side, zoom]);
 
   useEffect(() => {
     Image.getSize(
       imageUri,
-      (w, h) => setImgNatural({ w, h }),
+      (w, h) => {
+        setImgNatural({ w, h });
+        didCenterRef.current = false;
+      },
       () => setError('Could not read image size.'),
     );
   }, [imageUri]);
 
   useEffect(() => {
-    if (side <= 0 || display.w <= 0) {
+    if (!imgNatural || side <= 0 || didCenterRef.current) {
       return;
     }
+    const d = displaySize(imgNatural, side, MIN_ZOOM);
+    if (d.w <= 0) {
+      return;
+    }
+    didCenterRef.current = true;
+    setZoom(MIN_ZOOM);
     setPan({
-      x: (side - display.w) / 2,
-      y: (side - display.h) / 2,
+      x: (side - d.w) / 2,
+      y: (side - d.h) / 2,
     });
-  }, [imgNatural, side, zoom, display.w, display.h]);
+  }, [imgNatural, side]);
+
+  const measureCropWindow = useCallback(() => {
+    cropLayoutRef.current?.measureInWindow((x, y, w, h) => {
+      cropWindowRef.current = { x, y, w, h };
+    });
+  }, []);
 
   const clampPan = useCallback(
-    (p: { x: number; y: number }) => ({
-      x: clamp(p.x, side - display.w, 0),
-      y: clamp(p.y, side - display.h, 0),
+    (p: { x: number; y: number }, dw: number, dh: number) => ({
+      x: clamp(p.x, side - dw, 0),
+      y: clamp(p.y, side - dh, 0),
     }),
-    [side, display.w, display.h],
+    [side],
+  );
+
+  const focalInCrop = useCallback(
+    (touches: readonly { pageX: number; pageY: number }[]) => {
+      const win = cropWindowRef.current;
+      if (!win || touches.length < 2) {
+        return null;
+      }
+      const mx = (touches[0].pageX + touches[1].pageX) / 2;
+      const my = (touches[0].pageY + touches[1].pageY) / 2;
+      return {
+        x: clamp(mx - win.x, 0, win.w),
+        y: clamp(my - win.y, 0, win.h),
+      };
+    },
+    [],
   );
 
   const panResponder = useMemo(
@@ -87,22 +143,88 @@ export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
         onPanResponderGrant: () => {
-          dragOrigin.current = { ...panRef.current };
+          pinchAnchorRef.current = null;
+          lastSinglePageRef.current = null;
         },
-        onPanResponderMove: (_, g) => {
-          setPan(
-            clampPan({
-              x: dragOrigin.current.x + g.dx,
-              y: dragOrigin.current.y + g.dy,
-            }),
-          );
+        onPanResponderMove: (evt) => {
+          if (!imgNatural || side <= 0) {
+            return;
+          }
+          const touches = evt.nativeEvent.touches;
+          if (touches.length >= 2) {
+            wasMultiTouchRef.current = true;
+            lastSinglePageRef.current = null;
+            const d = touchDistance(touches[0], touches[1]);
+            if (d < 1) {
+              return;
+            }
+            if (!pinchAnchorRef.current) {
+              pinchAnchorRef.current = { startDist: d, startZoom: zoomRef.current };
+            }
+            const { startDist, startZoom } = pinchAnchorRef.current;
+            const nextZ = clamp(startZoom * (d / startDist), MIN_ZOOM, MAX_ZOOM);
+            const focal = focalInCrop(touches);
+            if (!focal) {
+              return;
+            }
+            const prevZ = zoomRef.current;
+            const prevPan = panRef.current;
+            const Dw0 = displaySize(imgNatural, side, prevZ).w;
+            const Dh0 = displaySize(imgNatural, side, prevZ).h;
+            const Dw1 = displaySize(imgNatural, side, nextZ).w;
+            const Dh1 = displaySize(imgNatural, side, nextZ).h;
+            const u = (focal.x - prevPan.x) / Dw0;
+            const v = (focal.y - prevPan.y) / Dh0;
+            const nextPan = clampPan(
+              {
+                x: focal.x - u * Dw1,
+                y: focal.y - v * Dh1,
+              },
+              Dw1,
+              Dh1,
+            );
+            setZoom(nextZ);
+            setPan(nextPan);
+          } else if (touches.length === 1) {
+            pinchAnchorRef.current = null;
+            const t = touches[0];
+            if (wasMultiTouchRef.current) {
+              wasMultiTouchRef.current = false;
+              lastSinglePageRef.current = { x: t.pageX, y: t.pageY };
+              return;
+            }
+            if (!lastSinglePageRef.current) {
+              lastSinglePageRef.current = { x: t.pageX, y: t.pageY };
+              return;
+            }
+            const ddx = t.pageX - lastSinglePageRef.current.x;
+            const ddy = t.pageY - lastSinglePageRef.current.y;
+            lastSinglePageRef.current = { x: t.pageX, y: t.pageY };
+            const dw = displaySize(imgNatural, side, zoomRef.current).w;
+            const dh = displaySize(imgNatural, side, zoomRef.current).h;
+            setPan(
+              clampPan(
+                {
+                  x: panRef.current.x + ddx,
+                  y: panRef.current.y + ddy,
+                },
+                dw,
+                dh,
+              ),
+            );
+          }
+        },
+        onPanResponderRelease: () => {
+          pinchAnchorRef.current = null;
+          lastSinglePageRef.current = null;
+        },
+        onPanResponderTerminate: () => {
+          pinchAnchorRef.current = null;
+          lastSinglePageRef.current = null;
         },
       }),
-    [clampPan],
+    [imgNatural, side, clampPan, focalInCrop],
   );
-
-  const zoomOut = () => setZoom((z) => clamp(z / 1.12, 1, 4));
-  const zoomIn = () => setZoom((z) => clamp(z * 1.12, 1, 4));
 
   const onRootLayout = (e: LayoutChangeEvent) => {
     const { width, height } = e.nativeEvent.layout;
@@ -131,8 +253,15 @@ export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
         [{ crop: { originX: ox, originY: oy, width: wCrop, height: hCrop } }],
         { compress: 0.92, format: ImageManipulator.SaveFormat.JPEG },
       );
-      await uploadProfilePhoto(token, manipulated.uri);
-      await refreshMe();
+      const croppedUri = manipulated.uri;
+      enqueueUpload({
+        title: 'Uploading profile photo',
+        successMessage: 'Profile photo updated',
+        run: async (onProgress) => {
+          await uploadProfilePhoto(token, croppedUri, onProgress);
+          await refreshMe();
+        },
+      });
       navigation.goBack();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed.');
@@ -159,7 +288,13 @@ export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
           <View style={[styles.dim, { height: dimTop }]} />
           <View style={{ flexDirection: 'row', height: side }}>
             <View style={[styles.dim, { width: dimLeftW }]} />
-            <View style={{ width: side, height: side, overflow: 'hidden', backgroundColor: '#000' }}>
+            <View
+              ref={cropLayoutRef}
+              onLayout={() => {
+                requestAnimationFrame(() => measureCropWindow());
+              }}
+              style={{ width: side, height: side, overflow: 'hidden', backgroundColor: '#000' }}
+            >
               {imgNatural && display.w > 0 ? (
                 <Image
                   source={{ uri: imageUri }}
@@ -180,16 +315,8 @@ export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
         </View>
 
         <View style={styles.toolbar} pointerEvents="box-none">
-          <Text style={styles.hint}>Drag to frame your shot. Use zoom to fill the square.</Text>
-          <View style={styles.zoomRow}>
-            <Pressable style={styles.zoomBtn} onPress={zoomOut} disabled={zoom <= 1 || saving}>
-              <Text style={styles.zoomBtnText}>−</Text>
-            </Pressable>
-            <Text style={styles.zoomLabel}>{Math.round(zoom * 100)}%</Text>
-            <Pressable style={styles.zoomBtn} onPress={zoomIn} disabled={zoom >= 4 || saving}>
-              <Text style={styles.zoomBtnText}>+</Text>
-            </Pressable>
-          </View>
+          <Text style={styles.hint}>Pinch to zoom inside the square. Drag the photo to frame your shot.</Text>
+          <Text style={styles.zoomHint}>{Math.round(zoom * 100)}%</Text>
           <View style={styles.actions}>
             <Pressable style={styles.cancel} onPress={() => navigation.goBack()} disabled={saving}>
               <Text style={styles.cancelText}>Cancel</Text>
@@ -246,35 +373,14 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.85)',
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
-  zoomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 20,
-    marginBottom: 14,
-  },
-  zoomBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  zoomBtnText: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: '500',
-    lineHeight: 32,
-  },
-  zoomLabel: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    minWidth: 56,
+  zoomHint: {
+    color: 'rgba(255,255,255,0.65)',
+    fontSize: 13,
+    fontWeight: '600',
     textAlign: 'center',
+    marginBottom: 12,
   },
   actions: {
     flexDirection: 'row',

@@ -7,7 +7,7 @@ Expo (React Native) + TypeScript. Uses the same API as the rest of the monorepo:
 The app should feel closer to **Instagram or X (Twitter)** than to a traditional “kid fitness checklist” product.
 
 - **Primary loop:** a **tournament feed** — the main screen users return to is a vertical, **infinite-scroll** stream where **photos are the hero** (full-width cards, minimal chrome, tap for detail). Text and metadata support the image; they do not compete with it.
-- **Secondary surfaces:** challenges, logging, family, and profile are important but should read as **satellite flows** you open from the feed or tabs, not as the emotional center of the app.
+- **Secondary surfaces:** challenges, family, and profile are important but should read as **satellite flows** you open from the feed or tabs, not as the emotional center of the app.
 - **Motion & density:** confident spacing, scroll-first navigation, pull-to-refresh where feeds exist later, and **instant** feedback on actions (loading states that feel lightweight, not modal-heavy wizards).
 - **Challenges:** users will still submit proof for challenges; treat submissions as **content that can surface in the feed** once approved (moderation is a backend/product rule — never show raw UGC without an approval path).
 

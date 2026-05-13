@@ -228,6 +228,7 @@ class Post(Base):
         nullable=False,
         index=True,
     )
+    #: ``ON DELETE CASCADE`` — removing the challenge deletes this post; ``post_photos`` cascade from ``posts``.
     challenge_id: Mapped[uuid.UUID] = mapped_column(
         Uuid,
         ForeignKey('challenges.id', ondelete='CASCADE'),

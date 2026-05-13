@@ -1,4 +1,9 @@
 import type { FeedPostCreated } from '../types/feedPost';
+import { ensureImageUnderMaxBytes } from './ensureImageUnderMaxBytes';
+import { postFormDataWithProgress } from './xhrFormUpload';
+
+/** Must match ``_MAX_PHOTOS_PER_POST`` in ``backend/app/routers/feed.py``. */
+export const MAX_FEED_POST_PHOTOS = 6;
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 
@@ -26,6 +31,7 @@ function parseDetail(raw: unknown): string {
 export async function createFeedPost(
   token: string,
   args: { challengeId: string; comment?: string; fileUris: string[] },
+  onProgress?: (fraction: number) => void,
 ): Promise<FeedPostCreated> {
   const form = new FormData();
   form.append('challenge_id', args.challengeId);
@@ -33,7 +39,12 @@ export async function createFeedPost(
   if (trimmed) {
     form.append('comment', trimmed);
   }
-  for (const uri of args.fileUris) {
+  const uris = args.fileUris.slice(0, MAX_FEED_POST_PHOTOS);
+  const preparedUris: string[] = [];
+  for (const uri of uris) {
+    preparedUris.push(await ensureImageUnderMaxBytes(uri));
+  }
+  for (const uri of preparedUris) {
     const nameFromUri = uri.split('/').pop() ?? 'photo.jpg';
     const ext = nameFromUri.includes('.') ? nameFromUri.split('.').pop()?.toLowerCase() : '';
     const mime =
@@ -48,16 +59,23 @@ export async function createFeedPost(
     form.append('files', { uri, name, type: mime } as unknown as Blob);
   }
 
-  const response = await fetch(`${API_BASE_URL}/feed/posts`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
+  const { ok, json } = await postFormDataWithProgress(
+    `${API_BASE_URL}/feed/posts`,
+    form,
+    { Authorization: `Bearer ${token}` },
+    (loaded, total, lengthComputable) => {
+      if (!onProgress) {
+        return;
+      }
+      if (lengthComputable && total > 0) {
+        onProgress(loaded / total);
+      } else {
+        onProgress(-1);
+      }
     },
-    body: form,
-  });
+  );
 
-  const json: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
+  if (!ok) {
     throw new Error(parseDetail(json));
   }
   if (typeof json !== 'object' || json === null || typeof (json as FeedPostCreated).id !== 'string') {
