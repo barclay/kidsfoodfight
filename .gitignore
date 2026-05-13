@@ -14,6 +14,10 @@ web-build/
 # Hugging Face model cache (BLIP; large; created by Docker bind mount)
 data/hf-cache/
 
+# Local media from API and seed (see data/uploads/.gitkeep)
+data/uploads/posts/
+data/uploads/users/
+
 # Secrets
 .env
 *.key
