@@ -1,6 +1,6 @@
 # Kids Food Fight — Mobile App (`app/`)
 
-Expo (React Native) + TypeScript. Uses the same API as the rest of the monorepo: base URL `EXPO_PUBLIC_API_URL` (default `http://localhost:8000/api/v1`). Auth is JWT from `POST /auth/login` (OAuth2 form: `username` = email, `password`).
+Expo (React Native) + TypeScript. Uses the same API as the rest of the monorepo: base URL from **`app/.env`** as `EXPO_PUBLIC_API_URL` (see `app/.env.example`). For a **physical device** on your home network, prefer your Mac’s **Bonjour** name (e.g. `http://helios.local:8000/api/v1`) so you do not chase LAN IPs; iOS Simulator can use the same URL. Fallback in code if unset: `http://localhost:8000/api/v1`. Auth is JWT from `POST /auth/login` (OAuth2 form: `username` = email, `password`).
 
 ## Product feel (read this before building UI)
 
@@ -21,7 +21,7 @@ When adding new screens, default to **feed-native patterns** (full-bleed media, 
 
 ## Local API from a device or emulator
 
-`localhost` on a phone points at the phone, not your computer. Point `EXPO_PUBLIC_API_URL` at your machine’s LAN IP (e.g. `http://192.168.1.10:8000/api/v1`) or use host loopback aliases (`10.0.2.2` on Android emulator). iOS Simulator can use `http://localhost:8000/api/v1`.
+`localhost` on a **physical phone** is the phone itself, not your Mac. Use **`http://<your-mac>.local:8000/api/v1`** in `app/.env` (Bonjour / mDNS) so one URL works for **iOS Simulator**, **this Mac**, and **devices on the same Wi‑Fi**—as long as your Mac’s hostname resolves (Sharing → Local Hostname). If `.local` fails (some guest networks), fall back to a fixed LAN IP. Android emulator from the dev machine can still use `http://10.0.2.2:8000/api/v1` (special alias to the host).
 
 ## Commands
 
@@ -71,4 +71,5 @@ If `ios/` or `android/` are missing, `expo run:*` will run prebuild for you firs
 - Keep API wrappers in `src/lib/`; auth session in `src/context/AuthContext.tsx`.
 - Home feed: `GET /feed/posts` (approved posts, newest first); images use `GET /api/v1/media/...` with the same Bearer token as other API calls.
 - Challenges tab: `GET /challenges/available` — team tournaments active on the user's **local calendar** (profile `timezone`), challenges for days `1..current_day` within each active tournament, **excluding** challenges the user already has **any** post for. Flow: list → detail (`Let's go!`) → multipart `POST /feed/posts` (same JWT). Duplicate post for the same challenge is rejected with **400**.
+- Profile: `GET /api/v1/users/me` for `me` in auth context; avatar via `POST /api/v1/me/profile-photo` (multipart `file`); display with `GET /api/v1/media/{data/...}` + JWT. Client crops to 1:1 before upload; server center-crops and downsizes to JPEG again for safety.
 - TypeScript strict: no `any`.

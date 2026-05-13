@@ -5,3 +5,8 @@ export type ChallengesStackParamList = {
   ChallengeDetail: { challenge: AvailableChallenge };
   ChallengePost: { challengeId: string; challengeTitle: string };
 };
+
+export type ProfileStackParamList = {
+  ProfileHome: undefined;
+  ProfilePhotoCrop: { imageUri: string };
+};

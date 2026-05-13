@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import admin, challenges, feed
+from app.routers import admin, challenges, feed, me
 from app.auth import auth_backend, fastapi_users
 from app.config import settings
 from app.schemas import UserCreate, UserRead, UserUpdate
@@ -45,6 +45,7 @@ app.include_router(
 app.include_router(admin.router, prefix='/api/v1')
 app.include_router(feed.router, prefix='/api/v1')
 app.include_router(challenges.router, prefix='/api/v1')
+app.include_router(me.router, prefix='/api/v1')
 
 
 @app.get('/health', tags=['meta'])

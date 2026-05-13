@@ -9,7 +9,7 @@ import FamilyScreen from '../screens/FamilyScreen';
 import HomeScreen from '../screens/HomeScreen';
 import LogActivityScreen from '../screens/LogActivityScreen';
 import LoginScreen from '../screens/LoginScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import ProfileStack from './ProfileStack';
 
 const Tab = createBottomTabNavigator();
 const RootStack = createNativeStackNavigator();
@@ -57,7 +57,7 @@ function MainTabs() {
         options={{ tabBarLabel: 'Log Activity' }}
       />
       <Tab.Screen name="Family" component={FamilyScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );
 }
