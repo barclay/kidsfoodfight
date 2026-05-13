@@ -9,3 +9,8 @@ fastapi-users[sqlalchemy]==14.0.2
 email-validator==2.3.0
 python-multipart==0.0.20
 httpx==0.28.1
+# BLIP image captions (PostPhoto.description); CPU wheels from PyPI
+torch>=2.2.0,<2.8.0
+transformers>=4.40.0,<5.0.0
+pillow>=10.0.0
+safetensors>=0.4.0

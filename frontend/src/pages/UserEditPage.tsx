@@ -1,11 +1,13 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { apiFetch } from '../api';
+import type { AdminTeamListItem } from './TeamsListPage';
 
 interface AdminUserDetail {
   id: string;
   email: string;
-  username: string;
+  display_name: string;
+  timezone: string;
   is_active: boolean;
   is_superuser: boolean;
   is_verified: boolean;
@@ -18,14 +20,15 @@ interface AdminUserDetail {
 export function UserEditPage() {
   const { userId } = useParams<{ userId: string }>();
   const [user, setUser] = useState<AdminUserDetail | null>(null);
-  const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [timezone, setTimezone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [isSuperuser, setIsSuperuser] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [teamId, setTeamId] = useState('');
-  const [clearTeam, setClearTeam] = useState(false);
+  const [teams, setTeams] = useState<AdminTeamListItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,21 +36,31 @@ export function UserEditPage() {
     if (!userId) return;
     let cancelled = false;
     (async () => {
-      const res = await apiFetch(`/api/v1/admin/users/${userId}`);
-      if (!res.ok) {
+      const [userRes, teamsRes] = await Promise.all([
+        apiFetch(`/api/v1/admin/users/${userId}`),
+        apiFetch('/api/v1/admin/teams?limit=100'),
+      ]);
+      if (!userRes.ok) {
         setError('User not found');
         return;
       }
-      const u = (await res.json()) as AdminUserDetail;
+      const u = (await userRes.json()) as AdminUserDetail;
       if (cancelled) return;
       setUser(u);
-      setUsername(u.username);
+      setDisplayName(u.display_name);
+      setTimezone(u.timezone);
       setEmail(u.email);
       setIsActive(u.is_active);
       setIsSuperuser(u.is_superuser);
       setIsVerified(u.is_verified);
       setTeamId(u.team_id ?? '');
-      setClearTeam(false);
+
+      if (teamsRes.ok) {
+        const list = (await teamsRes.json()) as AdminTeamListItem[];
+        if (!cancelled) setTeams(list);
+      } else if (!cancelled) {
+        setTeams([]);
+      }
     })();
     return () => {
       cancelled = true;
@@ -60,7 +73,8 @@ export function UserEditPage() {
     setMessage(null);
     setError(null);
     const body: Record<string, unknown> = {
-      username,
+      display_name: displayName,
+      timezone,
       email,
       is_active: isActive,
       is_superuser: isSuperuser,
@@ -69,10 +83,10 @@ export function UserEditPage() {
     if (password.trim()) {
       body.password = password;
     }
-    if (clearTeam) {
-      body.team_id = null;
-    } else if (teamId.trim() && teamId.trim() !== (user.team_id ?? '')) {
-      body.team_id = teamId.trim();
+    const nextTeamId = teamId.trim() === '' ? null : teamId.trim();
+    const prevTeamId = user.team_id ?? null;
+    if (nextTeamId !== prevTeamId) {
+      body.team_id = nextTeamId;
     }
     const res = await apiFetch(`/api/v1/admin/users/${userId}`, {
       method: 'PATCH',
@@ -86,10 +100,24 @@ export function UserEditPage() {
     const u = (await res.json()) as AdminUserDetail;
     setUser(u);
     setPassword('');
-    setClearTeam(false);
     setTeamId(u.team_id ?? '');
+    setTimezone(u.timezone);
     setMessage('Saved.');
   }
+
+  const teamOptions = useMemo(() => {
+    const byId = new Map(teams.map((t) => [t.id, t]));
+    if (user?.team && !byId.has(user.team.id)) {
+      byId.set(user.team.id, {
+        id: user.team.id,
+        name: user.team.name,
+        invite_code: user.team.invite_code,
+        created_at: '',
+        member_count: 0,
+      });
+    }
+    return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [teams, user]);
 
   if (error && !user) return <p style={{ color: '#b91c1c' }}>{error}</p>;
   if (!user) return <p>Loading…</p>;
@@ -112,11 +140,21 @@ export function UserEditPage() {
       )}
       <form onSubmit={onSubmit} style={{ maxWidth: 480 }}>
         <label style={{ display: 'block', marginBottom: 12 }}>
-          Username
+          Display name
           <input
             style={{ display: 'block', width: '100%', marginTop: 4, padding: 8 }}
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            required
+          />
+        </label>
+        <label style={{ display: 'block', marginBottom: 12 }}>
+          Time zone (IANA)
+          <input
+            style={{ display: 'block', width: '100%', marginTop: 4, padding: 8 }}
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            placeholder="America/Los_Angeles"
             required
           />
         </label>
@@ -153,18 +191,19 @@ export function UserEditPage() {
           Verified email
         </label>
         <label style={{ display: 'block', marginBottom: 12 }}>
-          Team ID (UUID)
-          <input
+          Team
+          <select
             style={{ display: 'block', width: '100%', marginTop: 4, padding: 8 }}
             value={teamId}
             onChange={(e) => setTeamId(e.target.value)}
-            disabled={clearTeam}
-            placeholder="paste team UUID to assign"
-          />
-        </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <input type="checkbox" checked={clearTeam} onChange={(e) => setClearTeam(e.target.checked)} />
-          Remove from team
+          >
+            <option value="">— No team —</option>
+            {teamOptions.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name} ({t.invite_code})
+              </option>
+            ))}
+          </select>
         </label>
         {error ? <p style={{ color: '#b91c1c' }}>{error}</p> : null}
         {message ? <p style={{ color: '#15803d' }}>{message}</p> : null}

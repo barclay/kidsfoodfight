@@ -32,11 +32,17 @@ export function Layout({ children }: { children?: ReactNode }) {
         <Link to="/users" style={linkStyle}>
           Users
         </Link>
+        <Link to="/teams" style={linkStyle}>
+          Teams
+        </Link>
         <Link to="/posts" style={linkStyle}>
           Posts
         </Link>
         <Link to="/tournaments" style={linkStyle}>
           Tournaments
+        </Link>
+        <Link to="/challenges" style={linkStyle}>
+          Challenges
         </Link>
         <span style={{ flex: 1 }} />
         <button type="button" onClick={logout}>

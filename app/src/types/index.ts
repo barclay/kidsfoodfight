@@ -1,7 +1,9 @@
 export interface User {
   id: string;
-  username: string;
+  email: string;
   displayName: string;
+  /** IANA time zone from the device; send on signup / profile update (e.g. America/Los_Angeles). */
+  timezone: string;
   avatarCharacter: string;
   points: number;
   level: number;

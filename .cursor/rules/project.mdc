@@ -9,6 +9,7 @@ alwaysApply: true
 - `app/` — React Native (Expo) mobile app
 - `frontend/` — Vite + React admin console (calls `/api/v1/admin/*`, superuser JWT)
 - `backend/` — FastAPI + PostgreSQL API
+- `docker-compose.yml` — **repository root**; Postgres + backend + frontend (nginx)
 - `kff_prototype/` — Reference ONLY. Never copy code from here.
 
 ## Schema Design

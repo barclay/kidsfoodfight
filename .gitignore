@@ -11,6 +11,9 @@ node_modules/
 dist/
 web-build/
 
+# Hugging Face model cache (BLIP; large; created by Docker bind mount)
+data/hf-cache/
+
 # Secrets
 .env
 *.key

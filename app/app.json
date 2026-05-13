@@ -25,6 +25,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Kids Food Fight to access your photos to attach challenge proof.",
+          "cameraPermission": "Allow Kids Food Fight to use the camera for challenge proof."
+        }
+      ]
+    ]
   }
 }

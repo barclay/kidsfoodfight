@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kff
+      POSTGRES_PASSWORD: kff
+      POSTGRES_DB: kff
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kff -d kff']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+asyncpg://kff:kff@db:5432/kff
+      # Repo ``./data`` mounted read-write at ``/media/data``; ``MEDIA_PUBLIC_ROOT=/media`` → files at ``/media/data/...``
+      MEDIA_PUBLIC_ROOT: /media
+      STORAGE_BACKEND: local
+      # Persist BLIP / Hugging Face hub downloads (~1GiB+) across container recreates (host: ./data/hf-cache).
+      HF_HOME: /opt/hf-cache
+      # Optional: bootstrap superuser on container start (see docker-entrypoint.sh).
+      # Tournament / sample-post seeds are explicit: `make seed` (see AGENTS.md).
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-barclay@distinctpixel.com}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-food11}
+      SEED_ADMIN_DISPLAY_NAME: ${SEED_ADMIN_DISPLAY_NAME:-barclay}
+    volumes:
+      - ./backend:/app
+      - ./data:/media/data
+      - ./data/hf-cache:/opt/hf-cache
+      - /app/__pycache__
+    ports:
+      - '8000:8000'
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ''
+    restart: unless-stopped
+    ports:
+      - '8080:80'
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

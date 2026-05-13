@@ -12,6 +12,7 @@
  - Touch only what you must. Clean up only your own mess.
  - Define success criteria. Loop until verified.
  - This application is targeting families with children, so any and all user-generated input must have an approval mechanism before it can be displayed.
+ - **Backend Python:** use the **conda** env `kff-backend` from `backend/environment.yml` only. Do **not** create or rely on a `venv` / `.venv` under `backend/` for this project (avoids drift from Docker/conda and PEP 668 issues on macOS).
 
 ---
 
@@ -21,18 +22,22 @@ This is a monorepo containing:
 
 ```
 kidsfoodfight/
-├── AGENTS.md                  # This file — project guide for AI agents
-├── app/                       # React Native (Expo) mobile app — iOS & Android
-├── frontend/                  # Vite + React admin UI (JWT superusers; calls /api/v1/admin/*)
-├── backend/                   # FastAPI + PostgreSQL backend
-│   ├── app/                   # Python application code
+├── AGENTS.md
+├── docker-compose.yml         # Postgres + backend + frontend (nginx)
+├── .env.example               # Copy to .env for Compose (includes optional seed admin)
+├── app/                       # React Native (Expo)
+├── frontend/                  # Vite admin SPA (+ Dockerfile for Compose)
+├── backend/                   # FastAPI
+│   ├── app/
 │   ├── Dockerfile
-│   ├── docker-compose.yml
-│   └── .env.example
-└── kff_prototype/             # ⚠️ Reference ONLY — Replit prototype (do not use code)
-    ├── replit.md              # Original feature spec and architecture notes
-    └── design_guidelines.md   # Visual design system and component patterns
+│   ├── docker-entrypoint.sh   # Migrations + optional admin bootstrap, then uvicorn
+│   └── .env.example           # For non-Docker local Python only
+└── kff_prototype/             # Reference only
 ```
+
+### Naming in chat / issues
+
+In this project, **“frontend”** or **“admin panel”** means the **Vite admin SPA** in `frontend/`. **“App”** means the **React Native (Expo) mobile app** in `app/`. **“Backend”** means the **FastAPI** project in `backend/`.
 
 **Important:** `kff_prototype/` is a reference artifact from a prior Replit prototype. Its code (Express/Replit Auth) should never be reused directly. Use it to understand features, data models, challenge content, and design intent only.
 
@@ -144,53 +149,98 @@ Challenge content for all three events is fully documented in `kff_prototype/rep
 
 ## Development Setup
 
-### Backend (Docker)
+### Backend (Docker — full stack)
+
+From the **repository root**:
 
 ```bash
-cd backend
 cp .env.example .env
 docker compose up --build
 ```
 
-- API available at `http://localhost:8000`
-- Interactive docs at `http://localhost:8000/docs`
-- Backend reloads automatically on file changes (uvicorn `--reload`)
-- Postgres data persists in a named Docker volume across container restarts
+- API: `http://localhost:8000` · Docs: `http://localhost:8000/docs`
+- Admin UI (nginx, proxies `/api` to backend): `http://localhost:8080`
+- Postgres: `localhost:5432` (user/password/db: `kff` / `kff` / `kff`)
+- Backend container runs **Alembic migrations** on start, then optionally **seed admin** when `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` are both non-empty. **`docker-compose.yml` sets the same defaults as `.env.example`**, so you get a login without copying `.env`. Watch container logs for `[entrypoint]` / `[seed]` lines. To turn off admin bootstrap, remove or blank the `SEED_ADMIN_*` entries under `backend.environment` in `docker-compose.yml`.
+- **Dev fixtures** (Spring Fiesta tournament/challenges + sample images copied into `data/uploads/` as feed-style posts) are **not** run on container start. After the stack is up, from the repo root run **`make seed`** (same as `docker compose run --rm backend python -m scripts.seed_dev`). See `backend/scripts/seed_dev.py`.
 
 ### Backend (Local — conda)
 
-A conda environment is provided for local development, running migrations, and IDE integration.
+All local Python commands (Alembic, `uvicorn`, tests, ad-hoc scripts) should run **inside conda**, not a repo-local `venv`.
 
 ```bash
-# First time
-conda env create -f backend/environment.yml
-
-# Activate
 conda activate kff-backend
+cd backend
+cp .env.example .env
+# Point DATABASE_URL at a running Postgres (e.g. from docker compose up db)
+alembic upgrade head
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-# Update after requirements change
+If your shell cannot `conda activate` (e.g. some automation), use **`conda run`** from repo root:
+
+```bash
+conda run -n kff-backend --no-capture-output bash -lc 'cd backend && alembic upgrade head'
+```
+
+First-time Python deps (no Docker):
+
+```bash
+conda env create -f backend/environment.yml
+conda activate kff-backend
+# After requirements change:
 conda env update -f backend/environment.yml --prune
 ```
 
 ### Mobile App
 
+Start the Expo dev server from the repo root (or run the same file from `app/`):
+
 ```bash
-cd app
-npm install
-npx expo start
+./app/scripts/run
 ```
+
+First time only:
+
+```bash
+cd app && npm install
+```
+
+From `app/`, `npm start` runs the same script as `./scripts/run`.
 
 - Scan QR with Expo Go (iOS/Android) for device preview
 - Press `i` for iOS Simulator, `a` for Android Emulator
 
+### Dev database seed (Spring Fiesta + sample posts)
+
+Explicit seed (not on API boot). From **repository root** with Docker:
+
+```bash
+make seed
+# or: docker compose run --rm backend python -m scripts.seed_dev
+```
+
+With **conda** and Postgres reachable via `DATABASE_URL` in `backend/.env`:
+
+```bash
+conda activate kff-backend
+cd backend && python -m scripts.seed_dev
+```
+
+Requires `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` for the admin step (same vars as compose). Seeds: admin upsert → Spring Fiesta → one **approved** post per image in `data/sample-posts/` (bytes written under `data/uploads/posts/{post_id}/`, same as `POST /feed/posts`, with `approved=True` for dev).
+
 ### Running Migrations
 
 ```bash
-# Inside Docker
+# After `docker compose up`, from repo root:
 docker compose exec backend alembic upgrade head
 
-# Locally (with conda env active and Docker DB running)
+# Locally (conda + Postgres running)
+conda activate kff-backend
 cd backend && alembic upgrade head
+
+# Locally without activating (same env as above)
+conda run -n kff-backend --no-capture-output bash -lc 'cd backend && alembic upgrade head'
 ```
 
 ---

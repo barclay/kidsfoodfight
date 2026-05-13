@@ -22,6 +22,8 @@ async def get_user_db(session: AsyncSession = Depends(get_db)):
 # ── User manager ──────────────────────────────────────────────────────────────
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
+    """JWT login uses OAuth2PasswordRequestForm: the ``username`` field must be the account email."""
+
     reset_password_token_secret = settings.secret_key
     verification_token_secret = settings.secret_key
 

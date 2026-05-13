@@ -55,7 +55,7 @@ def _compile_entry(term: str) -> re.Pattern[str]:
     normalized = " ".join(term.split())
     if " " in normalized:
         parts = normalized.split(" ")
-        sep = r"(?:\s|_|-|\.|)+"
+        sep = r"[\s_.-]+"
         body = sep.join(rf"\b{re.escape(p)}\b" for p in parts)
         return re.compile(body, flags)
     if _uses_word_boundary_matching(normalized):
@@ -64,7 +64,7 @@ def _compile_entry(term: str) -> re.Pattern[str]:
 
 
 def _build_scanners(terms: list[str]) -> list[tuple[re.Pattern[str], str]]:
-    return [( _compile_entry(t), t) for t in terms]
+    return [(_compile_entry(t), t) for t in terms]
 
 
 _SCANNERS: list[tuple[re.Pattern[str], str]] = _build_scanners(_read_terms(_WORD_LIST_PATH))

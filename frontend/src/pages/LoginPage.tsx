@@ -4,7 +4,7 @@ import { apiFetch, login } from '../api';
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -14,7 +14,7 @@ export function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await login(username, password);
+      await login(email, password);
       const probe = await apiFetch('/api/v1/admin/users?limit=1');
       if (probe.status === 403) {
         throw new Error('This account is not an administrator (needs is_superuser).');
@@ -38,12 +38,13 @@ export function LoginPage() {
       </p>
       <form onSubmit={onSubmit}>
         <label style={{ display: 'block', marginBottom: 8 }}>
-          Username
+          Email
           <input
             style={{ display: 'block', width: '100%', marginTop: 4, padding: 8 }}
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
             required
           />
         </label>

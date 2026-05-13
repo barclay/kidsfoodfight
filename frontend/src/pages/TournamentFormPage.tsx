@@ -101,6 +101,13 @@ export function TournamentFormPage() {
       <p>
         <Link to="/tournaments">← Tournaments</Link>
       </p>
+      {!isCreate && tournamentId ? (
+        <p>
+          <Link to={`/challenges?tournamentId=${encodeURIComponent(tournamentId)}`}>
+            Challenges for this tournament
+          </Link>
+        </p>
+      ) : null}
       <h1>{isCreate ? 'New tournament' : 'Edit tournament'}</h1>
       <form onSubmit={onSubmit} style={{ maxWidth: 520 }}>
         <label style={{ display: 'block', marginBottom: 12 }}>

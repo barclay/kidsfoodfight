@@ -3,11 +3,14 @@ from datetime import datetime, timedelta, timezone
 from enum import StrEnum
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid, false as sql_false
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid, false as sql_false, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.invite_code import generate_invite_code
+
+# Default profile timezone: US Pacific (PST/PDT). Clients should send IANA IDs (e.g. from the phone).
+DEFAULT_USER_TIMEZONE = 'America/Los_Angeles'
 
 
 def _utcnow() -> datetime:
@@ -30,11 +33,22 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
 
     Each user belongs to at most one team (`team_id`); a team has many users.
     Tournament participation is team-scoped (user → team → tournament).
+
+    Optional ``profile_photo_storage_url`` holds a ``data/...`` media key (local disk in dev; S3 TBD).
+
+    `timezone` is an IANA name (e.g. America/Los_Angeles) for displaying local times;
+    default is US Pacific. Mobile clients should send the device zone at signup.
     """
 
     __tablename__ = 'users'
 
-    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    display_name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    timezone: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default=DEFAULT_USER_TIMEZONE,
+        server_default=text("'" + DEFAULT_USER_TIMEZONE + "'"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
@@ -47,6 +61,9 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         nullable=True,
         index=True,
     )
+    #: Optional avatar: local ``data/uploads/users/{user_id}/...`` key when ``STORAGE_BACKEND=local``;
+    #: production will use the same string shape as an S3 object key (TBD).
+    profile_photo_storage_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
     team: Mapped['Team | None'] = relationship(back_populates='users')
     posts: Mapped[list['Post']] = relationship(back_populates='author', cascade='all, delete-orphan')
@@ -248,6 +265,10 @@ class PostPhoto(Base):
         index=True,
     )
     storage_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    #: Smaller JPEG beside the full image (``*_thumb.jpg`` under the same ``data/uploads/posts/{post_id}/``).
+    thumbnail_storage_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    #: Auto-generated image caption (e.g. BLIP) for moderation / accessibility; optional.
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
 
     post: Mapped['Post'] = relationship(back_populates='photos')

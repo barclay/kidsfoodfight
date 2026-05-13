@@ -1,17 +1,24 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { apiFetch } from '../api';
+import { AuthenticatedStorageImage } from '../AuthenticatedStorageImage';
+import { apiFetch, openAuthenticatedMediaInNewTab } from '../api';
+
+interface AdminPostPhoto {
+  storage_url: string;
+  thumbnail_storage_url?: string | null;
+  description: string | null;
+}
 
 interface PostDetail {
   id: string;
   user_id: string;
   challenge_id: string;
-  author_username: string;
+  author_display_name: string;
   challenge_title: string;
   comment: string | null;
   approved: boolean;
   created_at: string;
-  photo_urls: string[];
+  photos: AdminPostPhoto[];
 }
 
 export function PostEditPage() {
@@ -67,18 +74,60 @@ export function PostEditPage() {
     <div>
       <p>
         <Link to="/posts">← Posts</Link>
+        {postId ? (
+          <>
+            {' · '}
+            <Link to={`/posts/${postId}`}>View</Link>
+          </>
+        ) : null}
       </p>
       <h1>Edit post</h1>
       <p>
-        Author: {post.author_username} · Challenge: {post.challenge_title}
+        Author: {post.author_display_name} · Challenge: {post.challenge_title}
       </p>
-      {post.photo_urls.length > 0 ? (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-          {post.photo_urls.map((url) => (
-            <a key={url} href={url} target="_blank" rel="noreferrer">
-              <img src={url} alt="" style={{ maxWidth: 160, maxHeight: 160, objectFit: 'cover' }} />
-            </a>
-          ))}
+      {post.photos.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>
+          {post.photos.map((ph) => {
+            const previewKey = ph.thumbnail_storage_url ?? ph.storage_url;
+            return (
+              <div key={ph.storage_url} style={{ border: '1px solid #e5e7eb', padding: 12, borderRadius: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => void openAuthenticatedMediaInNewTab(ph.storage_url)}
+                  style={{
+                    padding: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    borderRadius: 8,
+                  }}
+                  title="Open full-size image in new tab"
+                >
+                  <AuthenticatedStorageImage
+                    storageUrl={previewKey}
+                    alt=""
+                    style={{ maxWidth: 200, maxHeight: 200, objectFit: 'contain', display: 'block' }}
+                  />
+                </button>
+              <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8, wordBreak: 'break-all' }}>
+                {ph.storage_url}
+                {ph.thumbnail_storage_url ? (
+                  <>
+                    <br />
+                    <span style={{ color: '#9ca3af' }}>thumb: {ph.thumbnail_storage_url}</span>
+                  </>
+                ) : null}
+              </p>
+              {ph.description ? (
+                <p style={{ fontSize: 14, marginTop: 8 }}>
+                  <strong>Auto description</strong>: {ph.description}
+                </p>
+              ) : (
+                <p style={{ fontSize: 13, color: '#9ca3af', marginTop: 8 }}>No auto-description yet.</p>
+              )}
+            </div>
+            );
+          })}
         </div>
       ) : (
         <p>No photos</p>
