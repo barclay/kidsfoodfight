@@ -10,9 +10,26 @@ permissions:
 jobs:
   pytest:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql+asyncpg://kff:kff@127.0.0.1:5432/kff
     defaults:
       run:
         working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: kff
+          POSTGRES_PASSWORD: kff
+          POSTGRES_DB: kff
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kff -d kff"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +42,9 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+
+      - name: Apply database migrations
+        run: alembic upgrade head
 
       - name: Run pytest
         run: pytest
