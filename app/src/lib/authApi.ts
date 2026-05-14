@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+import { getApiBaseUrl } from './apiBaseUrl';
 
 export type TokenResponse = {
   access_token: string;
@@ -56,7 +56,7 @@ export async function loginWithEmailPassword(
     password,
   });
 
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const response = await fetch(`${getApiBaseUrl()}/auth/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -98,7 +98,7 @@ export async function registerUser(payload: RegisterPayload): Promise<void> {
     body.team_name = payload.team_name.trim();
   }
 
-  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+  const response = await fetch(`${getApiBaseUrl()}/auth/register`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

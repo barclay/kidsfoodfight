@@ -6,7 +6,7 @@ import { postFormDataWithProgress } from './xhrFormUpload';
 /** Must match ``_MAX_PHOTOS_PER_POST`` in ``backend/app/routers/feed.py``. */
 export const MAX_FEED_POST_PHOTOS = 6;
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+import { getApiBaseUrl } from './apiBaseUrl';
 
 function parseDetail(raw: unknown): string {
   if (typeof raw !== 'object' || raw === null || !('detail' in raw)) {
@@ -69,7 +69,7 @@ export async function createFeedPost(
   }
 
   const { ok, json } = await postFormDataWithProgress(
-    `${API_BASE_URL}/feed/posts`,
+    `${getApiBaseUrl()}/feed/posts`,
     form,
     { Authorization: `Bearer ${token}` },
     (loaded, total, lengthComputable) => {

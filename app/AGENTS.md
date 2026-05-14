@@ -1,6 +1,6 @@
 # Kids Food Fight — Mobile App (`app/`)
 
-Expo (React Native) + TypeScript. Uses the same API as the rest of the monorepo: base URL from **`app/.env`** as `EXPO_PUBLIC_API_URL` (see `app/.env.example`). For a **physical device** on your home network, prefer your Mac’s **Bonjour** name (e.g. `http://helios.local:8000/api/v1`) so you do not chase LAN IPs; iOS Simulator can use the same URL. Fallback in code if unset: `http://localhost:8000/api/v1`. Auth is JWT from `POST /auth/login` (OAuth2 form: `username` = email, `password`).
+Expo (React Native) + TypeScript. Uses the same API as the rest of the monorepo: base URL from **`EXPO_PUBLIC_API_URL`** in **`.env`** / **`.env.preview`** (see `app/.env.example`). At Metro start, `app.config.js` copies that into **`extra.apiUrl`**, which the app reads via **`expo-constants`** (`src/lib/apiBaseUrl.ts`) so the URL is correct in development. For a **physical device** on your home network, prefer your Mac’s **Bonjour** name (e.g. `http://helios.local:8000/api/v1`). Auth is JWT from `POST /auth/login` (OAuth2 form: `username` = email, `password`).
 
 ## Product feel (read this before building UI)
 

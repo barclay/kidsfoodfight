@@ -2,7 +2,7 @@ import type { UserMe } from '../types/userMe';
 import { ensureImageUnderMaxBytes } from './ensureImageUnderMaxBytes';
 import { postFormDataWithProgress } from './xhrFormUpload';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+import { getApiBaseUrl } from './apiBaseUrl';
 
 function parseDetail(raw: unknown): string {
   if (typeof raw !== 'object' || raw === null || !('detail' in raw)) {
@@ -39,7 +39,7 @@ export async function uploadProfilePhoto(
   } as unknown as Blob);
 
   const { ok, json } = await postFormDataWithProgress(
-    `${API_BASE_URL}/me/profile-photo`,
+    `${getApiBaseUrl()}/me/profile-photo`,
     form,
     { Authorization: `Bearer ${token}` },
     (loaded, total, lengthComputable) => {

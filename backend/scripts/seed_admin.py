@@ -13,6 +13,7 @@ from fastapi_users.password import PasswordHelper
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.config import settings
 from app.models import User, DEFAULT_USER_TIMEZONE
 
 
@@ -24,8 +25,7 @@ async def run() -> None:
         return
 
     display_name = os.environ.get('SEED_ADMIN_DISPLAY_NAME', '').strip() or email.split('@')[0][:64]
-    url = os.environ['DATABASE_URL']
-    engine = create_async_engine(url, echo=False)
+    engine = create_async_engine(settings.database_url, echo=False)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     ph = PasswordHelper()
 
