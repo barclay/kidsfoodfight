@@ -1,0 +1,30 @@
+# Vite HMR admin UI (separate service so host 8080 is not merged with base nginx 8080→80).
+#
+#   ./scripts/run
+#   # or:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build --scale frontend=0
+#
+# `scripts/run` scales the nginx `frontend` service to 0 so only this service binds host 8080.
+# Same URL: http://localhost:8080  (host 8080 → Vite 5173 in the container).
+# Set CHOKIDAR_USEPOLLING if file changes are not detected (common with Docker bind mounts on macOS).
+
+services:
+  admin:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    ports:
+      - '8080:5173'
+    environment:
+      VITE_API_URL: ''
+      VITE_PROXY_TARGET: http://backend:8000
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-true}
+    volumes:
+      - ./frontend:/app
+      - admin_node_modules:/app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  admin_node_modules:

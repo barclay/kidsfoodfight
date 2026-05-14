@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api';
 
 interface TournamentRow {
@@ -12,6 +12,7 @@ interface TournamentRow {
 }
 
 export function TournamentsListPage() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<TournamentRow[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,10 +52,12 @@ export function TournamentsListPage() {
         </thead>
         <tbody>
           {rows.map((t) => (
-            <tr key={t.id} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: 8 }}>
-                <Link to={`/tournaments/${t.id}`}>{t.name}</Link>
-              </td>
+            <tr
+              key={t.id}
+              className="admin-table-click-row"
+              onClick={() => navigate(`/tournaments/${t.id}`)}
+            >
+              <td style={{ padding: 8 }}>{t.name}</td>
               <td style={{ padding: 8 }}>{new Date(t.start_date).toLocaleString()}</td>
               <td style={{ padding: 8 }}>{t.length_days}</td>
             </tr>

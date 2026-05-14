@@ -57,3 +57,23 @@ def save_user_profile_photo_bytes(*, user_id: uuid.UUID, data: bytes, filename_s
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
     return key
+
+
+def unlink_local_media_key(key: str | None) -> None:
+    """Remove a ``data/...`` file on local disk if present; no-op for missing or invalid keys."""
+    if not key or not key.startswith('data/'):
+        return
+    try:
+        path = resolved_media_file(key)
+    except ValueError:
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        return
+    try:
+        parent = path.parent
+        if parent.is_dir() and not any(parent.iterdir()):
+            parent.rmdir()
+    except OSError:
+        pass

@@ -1,22 +1,37 @@
 """Admin-only REST API (requires JWT for an active superuser)."""
 
 import uuid
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi_users import exceptions as fu_exceptions
+from PIL import UnidentifiedImageError
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import UserManager, current_superuser, get_user_manager
+from app.config import settings
 from app.database import get_db
-from app.models import Challenge, ChallengeType, Post, PostPhoto, Team, TeamTournament, Tournament, User
+from app.models import (
+    Challenge,
+    ChallengeType,
+    Post,
+    PostLike,
+    PostPhoto,
+    Team,
+    TeamTournament,
+    Tournament,
+    User,
+)
 from app.obscene_language import ensure_text_is_clean
+from app.profile_photo_process import sniff_is_probably_image, square_jpeg_from_upload
 from app.schemas import UserUpdate
+from app.storage_local import save_user_profile_photo_bytes, unlink_local_media_key
 from app.schemas_admin import (
     AdminPostDetail,
     AdminPostListItem,
+    AdminPostListPage,
     AdminPostPatch,
     AdminPostPhotoOut,
     AdminPostsBulkDeleteResult,
@@ -34,11 +49,19 @@ from app.schemas_admin import (
     AdminChallengePatch,
     AdminTournamentCreate,
     AdminTournamentDetail,
+    AdminTournamentLeaderboardRow,
     AdminTournamentListItem,
     AdminTournamentPatch,
     AdminUserDetail,
     AdminUserListItem,
     AdminUserPatch,
+)
+from app.team_challenge_scoring import (
+    delete_all_scoring_rows,
+    fetch_tournament_leaderboard_rows,
+    resync_team_all_enrolled_tournaments,
+    sync_team_challenge_credit,
+    tournament_entry_points_map,
 )
 
 router = APIRouter(prefix='/admin', tags=['admin'])
@@ -69,7 +92,8 @@ def _challenge_to_admin_item(challenge: Challenge, tournament_name: str) -> Admi
     )
 
 
-def _team_to_detail(team: Team) -> AdminTeamDetail:
+def _team_to_detail(team: Team, tournament_points: dict[uuid.UUID, int] | None = None) -> AdminTeamDetail:
+    totals = tournament_points or {}
     users = team.users or []
     entries = team.tournament_entries or []
     tournaments: list[AdminTeamTournamentEntry] = []
@@ -81,6 +105,7 @@ def _team_to_detail(team: Team) -> AdminTeamDetail:
                 tournament_id=e.tournament_id,
                 tournament_name=tr.name if tr is not None else '',
                 joined_at=e.joined_at,
+                total_points=int(totals.get(e.id, 0)),
             )
         )
     return AdminTeamDetail(
@@ -91,6 +116,16 @@ def _team_to_detail(team: Team) -> AdminTeamDetail:
         members=[AdminTeamMemberItem.model_validate(u) for u in users],
         tournaments=tournaments,
     )
+
+
+async def _admin_team_detail(db: AsyncSession, team_id: uuid.UUID) -> AdminTeamDetail:
+    result = await db.execute(_team_detail_stmt(team_id))
+    team = result.unique().scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Team not found')
+    entry_ids = [e.id for e in (team.tournament_entries or [])]
+    totals = await tournament_entry_points_map(db, team_tournament_ids=entry_ids)
+    return _team_to_detail(team, tournament_points=totals)
 
 
 def _team_detail_stmt(team_id: uuid.UUID):
@@ -138,9 +173,7 @@ async def admin_create_team(db: DbSession, _: SuperUser, body: AdminTeamCreate) 
     team = Team(name=body.name)
     db.add(team)
     await db.flush()
-    await db.refresh(team)
-    result = await db.execute(_team_detail_stmt(team.id))
-    return _team_to_detail(result.unique().scalar_one())
+    return await _admin_team_detail(db, team.id)
 
 
 @router.get('/users', response_model=list[AdminUserListItem])
@@ -183,6 +216,8 @@ async def admin_patch_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
 
+    old_team_id = user.team_id
+
     data = body.model_dump(exclude_unset=True)
     team_sent = 'team_id' in body.model_fields_set
     team_id_val = data.pop('team_id', None) if team_sent else None
@@ -202,6 +237,93 @@ async def admin_patch_user(
                 raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Team not found')
         user.team_id = team_id_val
 
+    await db.flush()
+
+    if team_sent:
+        for affected_team_id in {tid for tid in (old_team_id, user.team_id) if tid is not None}:
+            await resync_team_all_enrolled_tournaments(db, team_id=affected_team_id)
+
+    await db.refresh(user, attribute_names=['team'])
+    stmt = select(User).options(selectinload(User.team)).where(User.id == user_id)
+    result = await db.execute(stmt)
+    return result.scalar_one()
+
+
+_MAX_PROFILE_PHOTO_BYTES = 8 * 1024 * 1024
+
+
+@router.post('/users/{user_id}/profile-photo', response_model=AdminUserDetail)
+async def admin_upload_user_profile_photo(
+    db: DbSession,
+    _: SuperUser,
+    user_id: uuid.UUID,
+    file: UploadFile = File(..., description='Profile image (jpeg, png, webp, or gif)'),
+) -> User:
+    """Replace a user's profile photo (square JPEG, same processing as ``POST /me/profile-photo``)."""
+    if settings.storage_backend != 'local':
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail='Only local storage is implemented; set STORAGE_BACKEND=local',
+        )
+    if not sniff_is_probably_image(file.content_type, file.filename):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='File must be an image (jpeg, png, webp, or gif)',
+        )
+
+    raw = await file.read()
+    if len(raw) > _MAX_PROFILE_PHOTO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f'Image must be at most {_MAX_PROFILE_PHOTO_BYTES // (1024 * 1024)} MiB',
+        )
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Empty file')
+
+    try:
+        jpeg_bytes = square_jpeg_from_upload(raw)
+    except UnidentifiedImageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='Could not read image; use a valid JPEG, PNG, WebP, or GIF',
+        ) from exc
+
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+
+    old_key = user.profile_photo_storage_url
+    new_key = save_user_profile_photo_bytes(user_id=user.id, data=jpeg_bytes, filename_suffix='.jpg')
+    user.profile_photo_storage_url = new_key
+    await db.flush()
+
+    if old_key and old_key != new_key:
+        unlink_local_media_key(old_key)
+
+    await db.refresh(user, attribute_names=['team'])
+    stmt = select(User).options(selectinload(User.team)).where(User.id == user_id)
+    result = await db.execute(stmt)
+    return result.scalar_one()
+
+
+@router.delete('/users/{user_id}/profile-photo', response_model=AdminUserDetail)
+async def admin_delete_user_profile_photo(db: DbSession, _: SuperUser, user_id: uuid.UUID) -> User:
+    """Clear profile photo (removes DB field and deletes local file when ``STORAGE_BACKEND=local``)."""
+    if settings.storage_backend != 'local':
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail='Only local storage is implemented; set STORAGE_BACKEND=local',
+        )
+    user = await db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='User not found')
+
+    old_key = user.profile_photo_storage_url
+    if old_key:
+        user.profile_photo_storage_url = None
+        await db.flush()
+        unlink_local_media_key(old_key)
+
     await db.refresh(user, attribute_names=['team'])
     stmt = select(User).options(selectinload(User.team)).where(User.id == user_id)
     result = await db.execute(stmt)
@@ -210,12 +332,7 @@ async def admin_patch_user(
 
 @router.get('/teams/{team_id}', response_model=AdminTeamDetail)
 async def admin_get_team(db: DbSession, _: SuperUser, team_id: uuid.UUID) -> AdminTeamDetail:
-    stmt = _team_detail_stmt(team_id)
-    result = await db.execute(stmt)
-    team = result.unique().scalar_one_or_none()
-    if team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Team not found')
-    return _team_to_detail(team)
+    return await _admin_team_detail(db, team_id)
 
 
 @router.patch('/teams/{team_id}', response_model=AdminTeamDetail)
@@ -233,9 +350,7 @@ async def admin_patch_team(
         ensure_text_is_clean(data['name'])
         team.name = data['name']
     await db.flush()
-    stmt = _team_detail_stmt(team_id)
-    result = await db.execute(stmt)
-    return _team_to_detail(result.unique().scalar_one())
+    return await _admin_team_detail(db, team_id)
 
 
 @router.put('/teams/{team_id}/members', response_model=AdminTeamDetail)
@@ -250,6 +365,7 @@ async def admin_put_team_members(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Team not found')
 
     target_ids = set(body.user_ids)
+    affected_team_ids: set[uuid.UUID] = {team_id}
 
     res_current = await db.execute(select(User).where(User.team_id == team_id))
     for u in res_current.scalars():
@@ -263,12 +379,15 @@ async def admin_put_team_members(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f'User not found: {uid}',
             )
+        prev = user.team_id
+        if prev is not None and prev != team_id:
+            affected_team_ids.add(prev)
         user.team_id = team_id
 
     await db.flush()
-    stmt = _team_detail_stmt(team_id)
-    result = await db.execute(stmt)
-    return _team_to_detail(result.unique().scalar_one())
+    for tid in affected_team_ids:
+        await resync_team_all_enrolled_tournaments(db, team_id=tid)
+    return await _admin_team_detail(db, team_id)
 
 
 @router.put('/teams/{team_id}/tournaments', response_model=AdminTeamDetail)
@@ -294,44 +413,68 @@ async def admin_put_team_tournaments(
     for tid in unique_ids:
         db.add(TeamTournament(team_id=team_id, tournament_id=tid))
     await db.flush()
-    result = await db.execute(_team_detail_stmt(team_id))
-    return _team_to_detail(result.unique().scalar_one())
+    await resync_team_all_enrolled_tournaments(db, team_id=team_id)
+    return await _admin_team_detail(db, team_id)
 
 
-@router.get('/posts', response_model=list[AdminPostListItem])
+@router.get('/posts', response_model=AdminPostListPage)
 async def admin_list_posts(
     db: DbSession,
     _: SuperUser,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     user_id: uuid.UUID | None = Query(None, description='Filter by post author'),
+    tournament_id: uuid.UUID | None = Query(None, description='Filter by challenge tournament'),
     challenge_id: uuid.UUID | None = Query(None, description='Filter by challenge'),
     approved: bool | None = Query(None),
     sort_by: Literal['created_at', 'author', 'challenge', 'photos', 'approved'] = Query('created_at'),
     sort_dir: Literal['asc', 'desc'] = Query('desc'),
-) -> list[AdminPostListItem]:
+) -> AdminPostListPage:
     photo_count_sq = (
         select(func.count(PostPhoto.id))
         .where(PostPhoto.post_id == Post.id)
         .correlate(Post)
         .scalar_subquery()
     )
+    like_count_sq = (
+        select(func.count(PostLike.id))
+        .where(PostLike.post_id == Post.id)
+        .correlate(Post)
+        .scalar_subquery()
+    )
+    conditions: list[Any] = []
+    if user_id is not None:
+        conditions.append(Post.user_id == user_id)
+    if tournament_id is not None:
+        conditions.append(Challenge.tournament_id == tournament_id)
+    if challenge_id is not None:
+        conditions.append(Post.challenge_id == challenge_id)
+    if approved is not None:
+        conditions.append(Post.approved.is_(approved))
+
+    count_stmt = (
+        select(func.count(Post.id))
+        .select_from(Post)
+        .join(User, Post.user_id == User.id)
+        .join(Challenge, Post.challenge_id == Challenge.id)
+    )
+    if conditions:
+        count_stmt = count_stmt.where(*conditions)
+    total = int((await db.execute(count_stmt)).scalar_one() or 0)
+
     stmt = (
         select(
             Post,
             User.display_name.label('author_display_name'),
             Challenge.title.label('challenge_title'),
             photo_count_sq.label('photo_count'),
+            like_count_sq.label('like_count'),
         )
         .join(User, Post.user_id == User.id)
         .join(Challenge, Post.challenge_id == Challenge.id)
     )
-    if user_id is not None:
-        stmt = stmt.where(Post.user_id == user_id)
-    if challenge_id is not None:
-        stmt = stmt.where(Post.challenge_id == challenge_id)
-    if approved is not None:
-        stmt = stmt.where(Post.approved.is_(approved))
+    if conditions:
+        stmt = stmt.where(*conditions)
 
     ascending = sort_dir == 'asc'
     if sort_by == 'created_at':
@@ -375,7 +518,7 @@ async def admin_list_posts(
         for pid, th, full in pr.all():
             preview_by_post[pid] = th or full
 
-    return [
+    items = [
         AdminPostListItem(
             id=row.Post.id,
             user_id=row.Post.user_id,
@@ -386,15 +529,18 @@ async def admin_list_posts(
             approved=row.Post.approved,
             created_at=row.Post.created_at,
             photo_count=int(row.photo_count or 0),
+            like_count=int(row.like_count or 0),
             list_preview_storage_url=preview_by_post.get(row.Post.id),
         )
         for row in rows
     ]
+    return AdminPostListPage(items=items, total=total)
 
 
 @router.delete('/posts', response_model=AdminPostsBulkDeleteResult)
 async def admin_delete_all_posts(db: DbSession, _: SuperUser) -> AdminPostsBulkDeleteResult:
     """Remove all posts (and cascade ``post_photos``). Superuser-only; intended for local dev cleanup."""
+    await delete_all_scoring_rows(db)
     result = await db.execute(delete(Post))
     deleted = int(result.rowcount) if result.rowcount is not None else 0
     await db.flush()
@@ -406,8 +552,12 @@ async def admin_delete_post(db: DbSession, _: SuperUser, post_id: uuid.UUID) -> 
     post = await db.get(Post, post_id)
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Post not found')
+    team_id = await db.scalar(select(User.team_id).where(User.id == post.user_id))
+    challenge_id = post.challenge_id
     await db.delete(post)
     await db.flush()
+    if team_id is not None:
+        await sync_team_challenge_credit(db, team_id=team_id, challenge_id=challenge_id)
 
 
 @router.get('/posts/{post_id}', response_model=AdminPostDetail)
@@ -434,6 +584,15 @@ async def admin_get_post(db: DbSession, _admin: SuperUser, post_id: uuid.UUID) -
         for row in photos_result.all()
     ]
 
+    like_count = int(
+        (
+            await db.scalar(
+                select(func.count()).select_from(PostLike).where(PostLike.post_id == post_id)
+            )
+        )
+        or 0
+    )
+
     return AdminPostDetail(
         id=post.id,
         user_id=post.user_id,
@@ -443,6 +602,7 @@ async def admin_get_post(db: DbSession, _admin: SuperUser, post_id: uuid.UUID) -
         comment=post.comment,
         approved=post.approved,
         created_at=post.created_at,
+        like_count=like_count,
         photos=photos,
     )
 
@@ -464,6 +624,10 @@ async def admin_patch_post(
     if 'approved' in data:
         post.approved = data['approved']
     await db.flush()
+    if 'approved' in data:
+        team_id = await db.scalar(select(User.team_id).where(User.id == post.user_id))
+        if team_id is not None:
+            await sync_team_challenge_credit(db, team_id=team_id, challenge_id=post.challenge_id)
     return await admin_get_post(db, admin, post_id)
 
 
@@ -485,6 +649,33 @@ async def admin_get_tournament(db: DbSession, _: SuperUser, tournament_id: uuid.
     if t is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
     return t
+
+
+@router.get(
+    '/tournaments/{tournament_id}/leaderboard',
+    response_model=list[AdminTournamentLeaderboardRow],
+)
+async def admin_tournament_leaderboard(
+    db: DbSession,
+    _: SuperUser,
+    tournament_id: uuid.UUID,
+) -> list[AdminTournamentLeaderboardRow]:
+    """Enrolled teams ranked by sum of challenge credits (approved completions only)."""
+    if await db.get(Tournament, tournament_id) is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+
+    raw_rows = await fetch_tournament_leaderboard_rows(db, tournament_id=tournament_id)
+    return [
+        AdminTournamentLeaderboardRow(
+            rank=i,
+            team_id=r.team_id,
+            team_name=r.team_name,
+            team_tournament_id=r.team_tournament_id,
+            total_points=r.total_points,
+            challenges_completed=r.challenges_completed,
+        )
+        for i, r in enumerate(raw_rows, start=1)
+    ]
 
 
 @router.post('/tournaments', response_model=AdminTournamentDetail, status_code=status.HTTP_201_CREATED)

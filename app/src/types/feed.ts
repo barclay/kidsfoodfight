@@ -16,4 +16,12 @@ export interface FeedPostItem {
   comment: string | null;
   approved: boolean;
   photos: FeedPostPhoto[];
+  like_count: number;
+  liked_by_me: boolean;
+}
+
+/** ``POST``/``DELETE`` ``/feed/posts/{id}/like`` */
+export interface FeedPostLikeState {
+  like_count: number;
+  liked_by_me: boolean;
 }

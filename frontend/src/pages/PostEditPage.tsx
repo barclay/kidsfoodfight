@@ -18,6 +18,7 @@ interface PostDetail {
   comment: string | null;
   approved: boolean;
   created_at: string;
+  like_count: number;
   photos: AdminPostPhoto[];
 }
 
@@ -83,7 +84,7 @@ export function PostEditPage() {
       </p>
       <h1>Edit post</h1>
       <p>
-        Author: {post.author_display_name} · Challenge: {post.challenge_title}
+        Author: {post.author_display_name} · Challenge: {post.challenge_title} · Likes: {post.like_count}
       </p>
       {post.photos.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 16 }}>

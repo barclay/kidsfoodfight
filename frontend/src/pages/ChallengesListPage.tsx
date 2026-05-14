@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../api';
 
 interface TournamentOption {
@@ -20,6 +20,7 @@ export interface ChallengeRow {
 }
 
 export function ChallengesListPage() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const tournamentFilter = searchParams.get('tournamentId') ?? '';
 
@@ -116,10 +117,12 @@ export function ChallengesListPage() {
         </thead>
         <tbody>
           {rows.map((c) => (
-            <tr key={c.id} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: 8 }}>
-                <Link to={`/challenges/${c.id}`}>{c.title}</Link>
-              </td>
+            <tr
+              key={c.id}
+              className="admin-table-click-row"
+              onClick={() => navigate(`/challenges/${c.id}`)}
+            >
+              <td style={{ padding: 8 }}>{c.title}</td>
               <td style={{ padding: 8 }}>{c.tournament_name}</td>
               <td style={{ padding: 8 }}>{c.day}</td>
               <td style={{ padding: 8 }}>{c.challenge_type}</td>

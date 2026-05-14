@@ -68,6 +68,8 @@ class AdminTeamTournamentEntry(BaseModel):
     tournament_id: uuid.UUID
     tournament_name: str
     joined_at: datetime
+    #: Sum of ``points_awarded`` for approved challenge completions in this tournament enrollment.
+    total_points: int = 0
 
 
 class AdminTeamListItem(BaseModel):
@@ -119,8 +121,16 @@ class AdminPostListItem(BaseModel):
     approved: bool
     created_at: datetime
     photo_count: int = 0
+    like_count: int = 0
     #: First photo: thumbnail ``data/...`` key if present, else full image key (for admin list preview).
     list_preview_storage_url: str | None = None
+
+
+class AdminPostListPage(BaseModel):
+    """Paginated admin post list (same filters as ``GET /admin/posts``)."""
+
+    items: list[AdminPostListItem]
+    total: int = Field(ge=0)
 
 
 class AdminPostPhotoOut(BaseModel):
@@ -140,6 +150,7 @@ class AdminPostDetail(BaseModel):
     comment: str | None
     approved: bool
     created_at: datetime
+    like_count: int = 0
     photos: list[AdminPostPhotoOut]
 
 
@@ -167,6 +178,17 @@ class AdminTournamentListItem(BaseModel):
 
 class AdminTournamentDetail(AdminTournamentListItem):
     pass
+
+
+class AdminTournamentLeaderboardRow(BaseModel):
+    """One enrolled team in a tournament with aggregated challenge credit score."""
+
+    rank: int = Field(ge=1)
+    team_id: uuid.UUID
+    team_name: str
+    team_tournament_id: uuid.UUID
+    total_points: int = Field(ge=0)
+    challenges_completed: int = Field(ge=0, description='Distinct challenges with at least one approved team post')
 
 
 class AdminTournamentCreate(BaseModel):

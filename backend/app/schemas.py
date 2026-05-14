@@ -110,6 +110,15 @@ class FeedPostItem(BaseModel):
     comment: str | None
     approved: bool
     photos: list[FeedPostPhoto]
+    like_count: int = Field(ge=0)
+    liked_by_me: bool
+
+
+class FeedPostLikeState(BaseModel):
+    """Returned by like/unlike so the client can refresh counts without reloading the feed."""
+
+    like_count: int = Field(ge=0)
+    liked_by_me: bool
 
 
 class AvailableChallengeItem(BaseModel):
@@ -123,3 +132,24 @@ class AvailableChallengeItem(BaseModel):
     day: int
     #: ``True`` when this challenge's ``day`` matches the user's current local tournament day.
     is_focus_day: bool
+
+
+class MeTournamentLeaderboardRow(BaseModel):
+    rank: int = Field(ge=1)
+    team_id: uuid.UUID
+    team_name: str
+    total_points: int = Field(ge=0)
+    challenges_completed: int = Field(ge=0)
+
+
+class MeActiveTournamentLeaderboard(BaseModel):
+    tournament_id: uuid.UUID
+    tournament_name: str
+    rows: list[MeTournamentLeaderboardRow]
+
+
+class MeTournamentLeaderboardsPayload(BaseModel):
+    """Leaderboards for tournaments the user's team is enrolled in and that are active on their local calendar."""
+
+    my_team_id: uuid.UUID | None
+    active_leaderboards: list[MeActiveTournamentLeaderboard]

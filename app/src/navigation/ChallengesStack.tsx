@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ChallengeDetailScreen from '../screens/ChallengeDetailScreen';
+import ChallengePhotoEditorScreen from '../screens/ChallengePhotoEditorScreen';
 import ChallengePostScreen from '../screens/ChallengePostScreen';
 import ChallengesListScreen from '../screens/ChallengesListScreen';
 import type { ChallengesStackParamList } from './types';
@@ -18,6 +19,11 @@ export default function ChallengesStack() {
       <Stack.Screen name="ChallengesList" component={ChallengesListScreen} options={{ headerShown: false }} />
       <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} options={{ title: 'Challenge' }} />
       <Stack.Screen name="ChallengePost" component={ChallengePostScreen} options={{ title: 'Submit proof' }} />
+      <Stack.Screen
+        name="ChallengePhotoEditor"
+        component={ChallengePhotoEditorScreen}
+        options={{ title: 'Stickers' }}
+      />
     </Stack.Navigator>
   );
 }

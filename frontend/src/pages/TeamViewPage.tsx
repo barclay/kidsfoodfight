@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '../api';
 
 interface TeamMember {
@@ -13,6 +13,7 @@ interface TeamTournamentEntry {
   tournament_id: string;
   tournament_name: string;
   joined_at: string;
+  total_points: number;
 }
 
 interface TeamDetail {
@@ -25,6 +26,7 @@ interface TeamDetail {
 }
 
 export function TeamViewPage() {
+  const navigate = useNavigate();
   const { teamId } = useParams<{ teamId: string }>();
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -96,15 +98,19 @@ export function TeamViewPage() {
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
                 <th style={{ padding: 8 }}>Tournament</th>
+                <th style={{ padding: 8 }}>Points</th>
                 <th style={{ padding: 8 }}>Joined</th>
               </tr>
             </thead>
             <tbody>
               {tournamentsSorted.map((e) => (
-                <tr key={e.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: 8 }}>
-                    <Link to={`/tournaments/${e.tournament_id}`}>{e.tournament_name}</Link>
-                  </td>
+                <tr
+                  key={e.id}
+                  className="admin-table-click-row"
+                  onClick={() => navigate(`/tournaments/${e.tournament_id}`)}
+                >
+                  <td style={{ padding: 8 }}>{e.tournament_name}</td>
+                  <td style={{ padding: 8 }}>{e.total_points ?? 0}</td>
                   <td style={{ padding: 8 }}>{new Date(e.joined_at).toLocaleString()}</td>
                 </tr>
               ))}
@@ -127,10 +133,12 @@ export function TeamViewPage() {
             </thead>
             <tbody>
               {team.members.map((m) => (
-                <tr key={m.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: 8 }}>
-                    <Link to={`/users/${m.id}`}>{m.display_name}</Link>
-                  </td>
+                <tr
+                  key={m.id}
+                  className="admin-table-click-row"
+                  onClick={() => navigate(`/users/${m.id}`)}
+                >
+                  <td style={{ padding: 8 }}>{m.display_name}</td>
                   <td style={{ padding: 8 }}>{m.email}</td>
                 </tr>
               ))}

@@ -208,6 +208,14 @@ class TeamTournament(Base):
 
     team: Mapped['Team'] = relationship(back_populates='tournament_entries')
     tournament: Mapped['Tournament'] = relationship(back_populates='team_entries')
+    challenge_credits: Mapped[list['TeamTournamentChallengeCredit']] = relationship(
+        back_populates='team_tournament',
+        cascade='all, delete-orphan',
+    )
+    score_events: Mapped[list['TeamTournamentScoreEvent']] = relationship(
+        back_populates='team_tournament',
+        cascade='all, delete-orphan',
+    )
 
 
 class Post(Base):
@@ -216,10 +224,16 @@ class Post(Base):
     ``photos``. At least one of a non-empty comment or one photo is required — enforce in
     the API layer (not expressible cleanly as a single-table CHECK).
 
+    Each user may have **at most one** post per challenge (multiple teammates may each have
+    their own post for the same challenge). Enforced in the database, not only in the API.
+
     ``approved`` gates visibility of user-generated content until a moderator accepts it.
     """
 
     __tablename__ = 'posts'
+    __table_args__ = (
+        UniqueConstraint('user_id', 'challenge_id', name='uq_posts_user_id_challenge_id'),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -252,6 +266,35 @@ class Post(Base):
     )
 
 
+class PostLike(Base):
+    """
+    One row per (user, post) while the post exists.
+
+    ``post_id`` is nullable and the FK uses ``ON DELETE SET NULL`` so removing a post leaves
+    historical like rows without deleting them (see product policy on not auto-cleaning).
+    """
+
+    __tablename__ = 'post_likes'
+    __table_args__ = (UniqueConstraint('user_id', 'post_id', name='uq_post_likes_user_post'),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('users.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    post_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey('posts.id', ondelete='SET NULL'),
+        nullable=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+
 class PostPhoto(Base):
     """One image attached to a post (ordering via ``sort_order``)."""
 
@@ -273,3 +316,78 @@ class PostPhoto(Base):
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
 
     post: Mapped['Post'] = relationship(back_populates='photos')
+
+
+class TeamTournamentChallengeCredit(Base):
+    """
+    At most one credit per enrolled team (``team_tournament``) per challenge.
+
+    Exists while at least one **current** team member has an **approved** post for that challenge.
+    ``points_awarded`` is a snapshot of ``Challenge.points`` at grant time (used on revoke).
+    """
+
+    __tablename__ = 'team_tournament_challenge_credits'
+    __table_args__ = (
+        UniqueConstraint(
+            'team_tournament_id',
+            'challenge_id',
+            name='uq_team_tournament_challenge_credits_tt_challenge',
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    team_tournament_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('team_tournaments.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    challenge_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('challenges.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    points_awarded: Mapped[int] = mapped_column(Integer, nullable=False)
+    anchor_post_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey('posts.id', ondelete='SET NULL'),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    team_tournament: Mapped['TeamTournament'] = relationship(back_populates='challenge_credits')
+
+
+class TeamTournamentScoreEvent(Base):
+    """Append-only audit trail for tournament-scoped team points (grant / revoke)."""
+
+    __tablename__ = 'team_tournament_score_events'
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    team_tournament_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('team_tournaments.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    challenge_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('challenges.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    delta: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_post_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey('posts.id', ondelete='SET NULL'),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    team_tournament: Mapped['TeamTournament'] = relationship(back_populates='score_events')

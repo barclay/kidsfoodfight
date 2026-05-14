@@ -65,7 +65,9 @@ export function ChallengeViewPage() {
       </div>
       <dl style={{ marginTop: 16, maxWidth: 560 }}>
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Tournament</dt>
-        <dd style={{ margin: 0 }}>{c.tournament_name}</dd>
+        <dd style={{ margin: 0 }}>
+          <Link to={`/tournaments/${c.tournament_id}`}>{c.tournament_name}</Link>
+        </dd>
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Day</dt>
         <dd style={{ margin: 0 }}>{c.day}</dd>
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Type</dt>

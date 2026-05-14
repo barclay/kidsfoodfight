@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiFetch } from '../api';
 import type { AdminUserListItem } from './UsersListPage';
 
@@ -14,6 +14,7 @@ interface TeamTournamentEntry {
   tournament_id: string;
   tournament_name: string;
   joined_at: string;
+  total_points: number;
 }
 
 interface TeamDetail {
@@ -48,6 +49,7 @@ const modalPanel: CSSProperties = {
 };
 
 export function TeamEditPage() {
+  const navigate = useNavigate();
   const { teamId } = useParams<{ teamId: string }>();
   const [team, setTeam] = useState<TeamDetail | null>(null);
   const [name, setName] = useState('');
@@ -338,10 +340,12 @@ export function TeamEditPage() {
             </thead>
             <tbody>
               {team.members.map((m) => (
-                <tr key={m.id} style={{ borderBottom: '1px solid #eee' }}>
-                  <td style={{ padding: 8 }}>
-                    <Link to={`/users/${m.id}`}>{m.display_name}</Link>
-                  </td>
+                <tr
+                  key={m.id}
+                  className="admin-table-click-row"
+                  onClick={() => navigate(`/users/${m.id}`)}
+                >
+                  <td style={{ padding: 8 }}>{m.display_name}</td>
                   <td style={{ padding: 8 }}>{m.email}</td>
                 </tr>
               ))}

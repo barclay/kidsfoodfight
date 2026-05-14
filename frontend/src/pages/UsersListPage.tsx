@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { AuthenticatedStorageImage } from '../AuthenticatedStorageImage';
 import { apiFetch } from '../api';
 
 export interface AdminUserListItem {
@@ -14,9 +15,13 @@ export interface AdminUserListItem {
   last_seen_at: string | null;
   team_id: string | null;
   team: { id: string; name: string; invite_code: string } | null;
+  profile_photo_storage_url?: string | null;
 }
 
+const AVATAR = 22;
+
 export function UsersListPage() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState<AdminUserListItem[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,9 +59,50 @@ export function UsersListPage() {
         </thead>
         <tbody>
           {rows.map((u) => (
-            <tr key={u.id} style={{ borderBottom: '1px solid #eee' }}>
+            <tr
+              key={u.id}
+              className="admin-table-click-row"
+              onClick={() => navigate(`/users/${u.id}`)}
+            >
               <td style={{ padding: 8 }}>
-                <Link to={`/users/${u.id}`}>{u.display_name}</Link>
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                >
+                  {u.profile_photo_storage_url ? (
+                    <AuthenticatedStorageImage
+                      storageUrl={u.profile_photo_storage_url}
+                      alt=""
+                      width={AVATAR}
+                      height={AVATAR}
+                      style={{
+                        width: AVATAR,
+                        height: AVATAR,
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      style={{
+                        display: 'inline-block',
+                        width: AVATAR,
+                        height: AVATAR,
+                        minWidth: AVATAR,
+                        borderRadius: '50%',
+                        backgroundColor: '#e5e7eb',
+                        border: '1px solid #d1d5db',
+                        flexShrink: 0,
+                      }}
+                    />
+                  )}
+                  {u.display_name}
+                </div>
               </td>
               <td style={{ padding: 8 }}>{u.timezone}</td>
               <td style={{ padding: 8 }}>{u.email}</td>

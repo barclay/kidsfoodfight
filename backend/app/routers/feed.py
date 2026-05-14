@@ -19,6 +19,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -28,8 +29,9 @@ from app.database import get_db
 from app.obscene_language import ensure_text_is_clean
 from app.media_paths import resolved_media_file
 from app.models import Challenge, Post, PostPhoto, Team, User
+from app.post_likes import add_like, like_counts_and_mine, post_readable_by_user, remove_like
 from app.post_photo_tasks import fill_post_photo_description
-from app.schemas import FeedPostCreated, FeedPostItem, FeedPostPhoto
+from app.schemas import FeedPostCreated, FeedPostItem, FeedPostLikeState, FeedPostPhoto
 from PIL import UnidentifiedImageError
 
 from app.post_photo_thumbnails import save_full_and_thumbnail_keys
@@ -115,6 +117,9 @@ async def list_feed_posts(
         )
         author_team_name[uid] = row['team_name']
 
+    post_ids = [p.id for p in posts]
+    like_counts, liked_ids = await like_counts_and_mine(db, post_ids, user.id)
+
     out: list[FeedPostItem] = []
     for post in posts:
         photos_sorted = sorted(post.photos, key=lambda ph: (ph.sort_order, ph.id))
@@ -137,9 +142,40 @@ async def list_feed_posts(
                 comment=post.comment,
                 approved=post.approved,
                 photos=photos,
+                like_count=like_counts.get(post.id, 0),
+                liked_by_me=post.id in liked_ids,
             )
         )
     return out
+
+
+# TODO(prod): rate-limit POST/DELETE ``.../like`` per user (and optionally per IP) to reduce abuse.
+
+
+@router.post('/feed/posts/{post_id}/like', response_model=FeedPostLikeState)
+async def like_feed_post(
+    post_id: uuid.UUID,
+    db: DbSession,
+    user: User = Depends(current_active_user),
+) -> FeedPostLikeState:
+    post = await db.get(Post, post_id)
+    if post is None or not post_readable_by_user(post, user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Post not found')
+    c, liked = await add_like(db, post_id, user.id)
+    return FeedPostLikeState(like_count=c, liked_by_me=liked)
+
+
+@router.delete('/feed/posts/{post_id}/like', response_model=FeedPostLikeState)
+async def unlike_feed_post(
+    post_id: uuid.UUID,
+    db: DbSession,
+    user: User = Depends(current_active_user),
+) -> FeedPostLikeState:
+    post = await db.get(Post, post_id)
+    if post is None or not post_readable_by_user(post, user.id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Post not found')
+    c, liked = await remove_like(db, post_id, user.id)
+    return FeedPostLikeState(like_count=c, liked_by_me=liked)
 
 
 @router.post('/feed/posts', response_model=FeedPostCreated, status_code=status.HTTP_201_CREATED)
@@ -197,7 +233,16 @@ async def create_feed_post(
         approved=False,
     )
     db.add(post)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        await db.rollback()
+        if 'uq_posts_user_id_challenge_id' not in str(exc):
+            raise
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='You already have a post for this challenge',
+        ) from None
 
     photo_tasks: list[tuple[uuid.UUID, str]] = []
     sort_order = 0

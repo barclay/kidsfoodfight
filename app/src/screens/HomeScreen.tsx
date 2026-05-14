@@ -28,6 +28,10 @@ export default function HomeScreen() {
     [token],
   );
 
+  const onLikePatch = useCallback((postId: string, patch: Pick<FeedPostItem, 'like_count' | 'liked_by_me'>) => {
+    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, ...patch } : p)));
+  }, []);
+
   const loadPage = useCallback(
     async (skip: number, mode: 'replace' | 'append') => {
       if (!token) {
@@ -129,7 +133,14 @@ export default function HomeScreen() {
         <FlatList
           data={posts}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <FeedPostCard item={item} authHeader={authHeader} />}
+          renderItem={({ item }) => (
+            <FeedPostCard
+              item={item}
+              authHeader={authHeader}
+              token={token}
+              onLikePatch={onLikePatch}
+            />
+          )}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={() => void onRefresh()} tintColor={Colors.orange} />
           }

@@ -5,8 +5,8 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { Colors } from '../lib/colors';
 import ChallengesStack from './ChallengesStack';
-import FamilyScreen from '../screens/FamilyScreen';
 import HomeScreen from '../screens/HomeScreen';
+import LeaderboardScreen from '../screens/LeaderboardScreen';
 import LoginScreen from '../screens/LoginScreen';
 import ProfileStack from './ProfileStack';
 
@@ -17,7 +17,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   const icons: Record<string, string> = {
     Home: '🏠',
     Challenges: '⚔️',
-    Family: '👨‍👩‍👧‍👦',
+    Leaderboard: '🏆',
     Profile: '👤',
   };
   return (
@@ -49,7 +49,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Challenges" component={ChallengesStack} />
-      <Tab.Screen name="Family" component={FamilyScreen} />
+      <Tab.Screen name="Leaderboard" component={LeaderboardScreen} />
       <Tab.Screen name="Profile" component={ProfileStack} />
     </Tab.Navigator>
   );

@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,6 +13,7 @@ import {
 } from 'react-native';
 import type { FeedPostItem } from '../types/feed';
 import { Colors } from '../lib/colors';
+import { likeFeedPost, unlikeFeedPost } from '../lib/feedApi';
 
 function formatFeedTimestamp(iso: string): string {
   const d = new Date(iso);
@@ -34,9 +37,11 @@ function formatAuthorAttribution(item: FeedPostItem): string {
 type Props = {
   item: FeedPostItem;
   authHeader: Record<string, string> | undefined;
+  token: string | null;
+  onLikePatch: (postId: string, patch: Pick<FeedPostItem, 'like_count' | 'liked_by_me'>) => void;
 };
 
-export function FeedPostCard({ item, authHeader }: Props) {
+export function FeedPostCard({ item, authHeader, token, onLikePatch }: Props) {
   const { width: screenWidth } = useWindowDimensions();
   const photos = useMemo(
     () => [...item.photos].sort((a, b) => a.sort_order - b.sort_order),
@@ -49,6 +54,26 @@ export function FeedPostCard({ item, authHeader }: Props) {
     const x = e.nativeEvent.contentOffset.x;
     const idx = Math.round(x / screenWidth);
     setCarouselIndex(Math.max(0, Math.min(photos.length - 1, idx)));
+  };
+
+  const [likeBusy, setLikeBusy] = useState(false);
+
+  const toggleLike = async () => {
+    if (!token || likeBusy) return;
+    setLikeBusy(true);
+    try {
+      const next = item.liked_by_me
+        ? await unlikeFeedPost(token, item.id)
+        : await likeFeedPost(token, item.id);
+      onLikePatch(item.id, {
+        like_count: next.like_count,
+        liked_by_me: next.liked_by_me,
+      });
+    } catch {
+      // Keep prior UI; optional: toast later
+    } finally {
+      setLikeBusy(false);
+    }
   };
 
   return (
@@ -130,9 +155,37 @@ export function FeedPostCard({ item, authHeader }: Props) {
       )}
 
       <View style={styles.footer}>
-        <View style={styles.fakeActions}>
-          <Text style={styles.fakeActionIcon}>♡</Text>
-          <Text style={styles.fakeActionIcon}>💬</Text>
+        <View style={styles.actionsRow}>
+          <View style={styles.likeWrap}>
+            <Pressable
+              onPress={() => void toggleLike()}
+              disabled={!token || likeBusy}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel={item.liked_by_me ? 'Unlike post' : 'Like post'}
+              style={({ pressed }) => [styles.likePressable, pressed && token ? { opacity: 0.7 } : null]}
+            >
+              {likeBusy ? (
+                <ActivityIndicator size="small" color={Colors.red} style={styles.likeSpinner} />
+              ) : (
+                <Text
+                  style={[styles.heartGlyph, item.liked_by_me ? styles.heartLiked : styles.heartHollow]}
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                >
+                  {item.liked_by_me ? '♥' : '♡'}
+                </Text>
+              )}
+            </Pressable>
+            {item.like_count > 0 ? (
+              <Text style={styles.likeCount} accessibilityLabel={`${item.like_count} likes`}>
+                {item.like_count}
+              </Text>
+            ) : null}
+          </View>
+          <Text style={styles.fakeCommentIcon} accessibilityElementsHidden>
+            💬
+          </Text>
         </View>
         {item.comment ? (
           <Text style={styles.caption}>
@@ -253,11 +306,44 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     gap: 6,
   },
-  fakeActions: {
+  actionsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 16,
   },
-  fakeActionIcon: {
+  likeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 48,
+  },
+  likePressable: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 44,
+    minHeight: 44,
+  },
+  likeSpinner: {
+    transform: [{ scale: 0.85 }],
+  },
+  heartGlyph: {
+    fontSize: 24,
+    lineHeight: 28,
+    fontWeight: '600',
+  },
+  heartLiked: {
+    color: Colors.red,
+  },
+  heartHollow: {
+    color: Colors.textMuted,
+  },
+  likeCount: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    minWidth: 20,
+  },
+  fakeCommentIcon: {
     fontSize: 22,
     opacity: 0.55,
   },

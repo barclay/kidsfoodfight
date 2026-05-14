@@ -94,40 +94,54 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
     if (!token) {
       return;
     }
+    if (uris.length > 0) {
+      return;
+    }
     const trimmed = comment.trim();
-    if (uris.length === 0 && !trimmed) {
-      setError('Add at least one photo or a short note for your submission.');
+    if (!trimmed) {
+      setError('Add a short note for a text-only post, or add photos to continue to stickers.');
       return;
     }
     const snapshot = {
       challengeId,
       comment: trimmed || undefined,
-      fileUris: [...uris],
+      fileUris: [] as string[],
     };
     enqueueUpload({
       title: 'Posting your challenge',
       successMessage: 'Submission sent',
       run: (onProgress) => createFeedPost(token, snapshot, onProgress),
     });
-    setUris([]);
     setComment('');
     setError(null);
     navigation.popToTop();
+  };
+
+  const goStickerEditor = () => {
+    if (!token || uris.length === 0) {
+      return;
+    }
+    navigation.navigate('ChallengePhotoEditor', {
+      challengeId,
+      challengeTitle,
+      imageUris: [...uris],
+      comment: comment.trim() || undefined,
+    });
   };
 
   if (!token) {
     return null;
   }
 
-  const canSubmit = uris.length > 0 || comment.trim().length > 0;
+  const canSubmitTextOnly = uris.length === 0 && comment.trim().length > 0;
+  const canContinueStickers = uris.length > 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>
-          Add up to {MAX_PHOTOS} photos and/or a caption. On your phone you can select several photos at
-          once from the library (where supported), take more with the camera, or tap Choose again to add
-          more. Your post is reviewed before it appears on the feed.
+          Add up to {MAX_PHOTOS} photos and/or a caption. When you add photos, you will place optional face
+          stickers on the next screen before submitting. Caption-only posts skip that step.
         </Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -181,17 +195,26 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.submit,
-            !canSubmit && styles.submitDisabled,
-            pressed && canSubmit && styles.submitPressed,
-          ]}
-          onPress={submit}
-          disabled={!canSubmit}
-        >
-          <Text style={styles.submitText}>Submit to challenge</Text>
-        </Pressable>
+        {canContinueStickers ? (
+          <Pressable
+            style={({ pressed }) => [styles.submit, pressed && styles.submitPressed]}
+            onPress={goStickerEditor}
+          >
+            <Text style={styles.submitText}>Continue — stickers</Text>
+          </Pressable>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [
+              styles.submit,
+              !canSubmitTextOnly && styles.submitDisabled,
+              pressed && canSubmitTextOnly && styles.submitPressed,
+            ]}
+            onPress={submit}
+            disabled={!canSubmitTextOnly}
+          >
+            <Text style={styles.submitText}>Submit caption only</Text>
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );

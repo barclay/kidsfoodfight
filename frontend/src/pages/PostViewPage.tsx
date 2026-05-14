@@ -18,6 +18,7 @@ interface PostDetail {
   comment: string | null;
   approved: boolean;
   created_at: string;
+  like_count: number;
   photos: AdminPostPhoto[];
 }
 
@@ -77,6 +78,8 @@ export function PostViewPage() {
         <dd style={{ margin: 0 }}>{post.challenge_title}</dd>
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Approved</dt>
         <dd style={{ margin: 0 }}>{post.approved ? 'yes' : 'no'}</dd>
+        <dt style={{ fontWeight: 600, marginTop: 8 }}>Likes</dt>
+        <dd style={{ margin: 0 }}>{post.like_count}</dd>
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Created</dt>
         <dd style={{ margin: 0 }}>{new Date(post.created_at).toLocaleString()}</dd>
         {post.comment ? (

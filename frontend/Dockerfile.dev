@@ -1,0 +1,8 @@
+# Dev image: lockfile install is cached; at runtime `./frontend` is bind-mounted over `/app`.
+# `node_modules` uses named volume `admin_node_modules` in docker-compose.dev.yml so the host tree is not used for deps.
+FROM node:22-alpine
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+EXPOSE 5173
+CMD ["sh", "-c", "if [ ! -d node_modules/.bin ]; then npm ci; fi && exec npm run dev -- --host 0.0.0.0 --port 5173"]

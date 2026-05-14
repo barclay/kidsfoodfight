@@ -99,7 +99,9 @@ export function TournamentFormPage() {
   return (
     <div>
       <p>
-        <Link to="/tournaments">← Tournaments</Link>
+        <Link to={isCreate ? '/tournaments' : `/tournaments/${tournamentId}`}>
+          {isCreate ? '← Tournaments' : '← Tournament'}
+        </Link>
       </p>
       {!isCreate && tournamentId ? (
         <p>

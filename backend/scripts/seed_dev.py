@@ -5,7 +5,9 @@ Runs, in order:
 
 1. ``scripts.seed_admin`` — superuser from ``SEED_ADMIN_*`` env vars.
 2. ``scripts.seed_spring_fiesta`` — Spring Fiesta tournament + challenges (forces ``SEED_SPRING_FIESTA=1`` for this step).
-3. ``scripts.seed_sample_posts`` — one post per image in ``data/sample-posts/`` (bytes saved like ``POST /feed/posts``).
+3. ``scripts.seed_dev_users`` — fixture teammates (Kate, Alaina + admin home team) and three solo users with teams; enrolls teams in Spring Fiesta.
+4. ``scripts.seed_sample_posts`` — sample images as posts, round-robin across those users (bytes saved like ``POST /feed/posts``).
+5. ``scripts.backfill_team_challenge_credits`` — sync team tournament scores from approved posts.
 
 Usage::
 
@@ -16,6 +18,7 @@ Usage::
     conda activate kff-backend && cd backend && python -m scripts.seed_dev
 
 Requires ``DATABASE_URL``. For admin seed, set ``SEED_ADMIN_EMAIL`` and ``SEED_ADMIN_PASSWORD``.
+Fixture users reuse that password unless ``SEED_DEV_USER_PASSWORD`` is set.
 """
 
 from __future__ import annotations
@@ -48,7 +51,9 @@ def main() -> None:
 
     _run_step('scripts.seed_admin')
     _run_step('scripts.seed_spring_fiesta', extra_env={'SEED_SPRING_FIESTA': '1'})
+    _run_step('scripts.seed_dev_users')
     _run_step('scripts.seed_sample_posts')
+    _run_step('scripts.backfill_team_challenge_credits')
     print('[seed_dev] Done.')
 
 

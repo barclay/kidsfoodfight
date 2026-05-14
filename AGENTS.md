@@ -24,7 +24,10 @@ This is a monorepo containing:
 ```
 kidsfoodfight/
 ├── AGENTS.md
-├── docker-compose.yml         # Postgres + backend + frontend (nginx)
+├── scripts/
+│   └── run                    # Canonical dev: Docker Compose + Vite HMR admin UI
+├── docker-compose.yml         # Postgres + backend + frontend (default: nginx static admin)
+├── docker-compose.dev.yml     # Adds `admin` (Vite HMR); `scripts/run` scales nginx `frontend` to 0
 ├── .env.example               # Copy to .env for Compose (includes optional seed admin)
 ├── app/                       # React Native (Expo)
 ├── frontend/                  # Vite admin SPA (+ Dockerfile for Compose)
@@ -150,20 +153,34 @@ Challenge content for all three events is fully documented in `kff_prototype/rep
 
 ## Development Setup
 
-### Backend (Docker — full stack)
+### Full stack (Docker) — canonical
 
-From the **repository root**:
+From the **repository root** (first-time: `cp .env.example .env` if you do not already have a `.env`):
 
 ```bash
-cp .env.example .env
+./scripts/run
+```
+
+This runs `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build --scale frontend=0` (see `scripts/run`): **Postgres**, **FastAPI** (with migrations and optional admin seed from compose / `.env`), and the **`admin` service** (Vite HMR from `docker-compose.dev.yml`). The base **`frontend`** nginx container is scaled to **0** so host **8080** maps only to Vite (**8080:5173**); otherwise Compose would merge **8080:80** and **8080:5173** and traffic could hit the wrong in-container port. Same URLs as below; admin changes under `frontend/` reload without rebuilding the UI image.
+
+- API: `http://localhost:8000` · Docs: `http://localhost:8000/docs`
+- Admin UI (Vite, proxies `/api` to backend): `http://localhost:8080`
+- Postgres: `localhost:5432` (user/password/db: `kff` / `kff` / `kff`)
+- Backend runs **Alembic** on start, then optional **seed admin** when `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` are both non-empty. **`docker-compose.yml` matches `.env.example` defaults** for local Docker. Watch container logs for `[entrypoint]` / `[seed]`. To turn off admin bootstrap, blank `SEED_ADMIN_*` under `backend.environment` in `docker-compose.yml`.
+- **Dev fixtures** (Spring Fiesta + sample posts) are **not** on API boot. After the stack is up: **`make seed`** (same as `docker compose run --rm backend python -m scripts.seed_dev`). See `backend/scripts/seed_dev.py`.
+- File-watch **polling** defaults on for Docker bind mounts (`CHOKIDAR_USEPOLLING` in `docker-compose.dev.yml`). Set `CHOKIDAR_USEPOLLING=false` in the environment if you do not need it (e.g. Linux). After `package.json` / lockfile changes, rebuild the **`admin`** image or run `npm ci` in the **`admin`** container (for example `docker compose -f docker-compose.yml -f docker-compose.dev.yml exec admin npm ci` while the stack is up).
+
+Extra Compose flags pass through: `./scripts/run -d` for detached mode. If you merge `docker-compose.dev.yml` manually, include **`--scale frontend=0`** (same as `scripts/run`); otherwise the base **`frontend`** and **`admin`** services both publish host **8080** and Compose will fail to start or behave unpredictably.
+
+### Full stack (Docker) — static admin build (nginx)
+
+For a production-like admin bundle (no Vite HMR; rebuild image after frontend edits):
+
+```bash
 docker compose up --build
 ```
 
-- API: `http://localhost:8000` · Docs: `http://localhost:8000/docs`
-- Admin UI (nginx, proxies `/api` to backend): `http://localhost:8080`
-- Postgres: `localhost:5432` (user/password/db: `kff` / `kff` / `kff`)
-- Backend container runs **Alembic migrations** on start, then optionally **seed admin** when `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` are both non-empty. **`docker-compose.yml` sets the same defaults as `.env.example`**, so you get a login without copying `.env`. Watch container logs for `[entrypoint]` / `[seed]` lines. To turn off admin bootstrap, remove or blank the `SEED_ADMIN_*` entries under `backend.environment` in `docker-compose.yml`.
-- **Dev fixtures** (Spring Fiesta tournament/challenges + sample images copied into `data/uploads/` as feed-style posts) are **not** run on container start. After the stack is up, from the repo root run **`make seed`** (same as `docker compose run --rm backend python -m scripts.seed_dev`). See `backend/scripts/seed_dev.py`.
+Same ports; the `frontend` service serves `dist/` via nginx per `frontend/Dockerfile`.
 
 ### Backend (Local — conda)
 
@@ -233,7 +250,7 @@ Requires `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` for the admin step (same var
 ### Running Migrations
 
 ```bash
-# After `docker compose up`, from repo root:
+# After `./scripts/run` or `docker compose up`, from repo root:
 docker compose exec backend alembic upgrade head
 
 # Locally (conda + Postgres running)

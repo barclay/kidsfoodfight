@@ -1,3 +1,4 @@
+import type { ChallengeOverlaysPayload } from '../types/challengeOverlays';
 import type { FeedPostCreated } from '../types/feedPost';
 import { ensureImageUnderMaxBytes } from './ensureImageUnderMaxBytes';
 import { postFormDataWithProgress } from './xhrFormUpload';
@@ -30,7 +31,12 @@ function parseDetail(raw: unknown): string {
 
 export async function createFeedPost(
   token: string,
-  args: { challengeId: string; comment?: string; fileUris: string[] },
+  args: {
+    challengeId: string;
+    comment?: string;
+    fileUris: string[];
+    overlays?: ChallengeOverlaysPayload;
+  },
   onProgress?: (fraction: number) => void,
 ): Promise<FeedPostCreated> {
   const form = new FormData();
@@ -38,6 +44,9 @@ export async function createFeedPost(
   const trimmed = args.comment?.trim();
   if (trimmed) {
     form.append('comment', trimmed);
+  }
+  if (args.overlays != null) {
+    form.append('overlays', JSON.stringify(args.overlays));
   }
   const uris = args.fileUris.slice(0, MAX_FEED_POST_PHOTOS);
   const preparedUris: string[] = [];

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Canonical local dev stack: Postgres + API + admin UI (Vite HMR). Run from any cwd.
+set -euo pipefail
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+# Scale nginx `frontend` to 0: merging dev with base would otherwise publish both 8080→80 and 8080→5173.
+exec docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build --scale frontend=0 "$@"

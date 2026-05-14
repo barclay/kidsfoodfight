@@ -13,6 +13,7 @@ interface PostRow {
   approved: boolean;
   created_at: string;
   photo_count: number;
+  like_count: number;
   list_preview_storage_url?: string | null;
 }
 
@@ -24,9 +25,15 @@ interface AdminUserOption {
 
 interface AdminChallengeOption {
   id: string;
+  tournament_id: string;
   tournament_name: string;
   title: string;
   day: number;
+}
+
+interface AdminTournamentOption {
+  id: string;
+  name: string;
 }
 
 type SortColumn = 'created_at' | 'author' | 'challenge' | 'photos' | 'approved';
@@ -39,6 +46,8 @@ const DEFAULT_SORT_DIR: Record<SortColumn, SortDir> = {
   photos: 'desc',
   approved: 'asc',
 };
+
+const PAGE_SIZE_OPTIONS = [25, 50, 100] as const;
 
 const actionBtn: CSSProperties = {
   padding: '6px 10px',
@@ -103,20 +112,26 @@ export function PostsListPage() {
   const [loading, setLoading] = useState(true);
   const [userOptions, setUserOptions] = useState<AdminUserOption[]>([]);
   const [challengeOptions, setChallengeOptions] = useState<AdminChallengeOption[]>([]);
+  const [tournamentOptions, setTournamentOptions] = useState<AdminTournamentOption[]>([]);
   const [filterUserId, setFilterUserId] = useState('');
+  const [filterTournamentId, setFilterTournamentId] = useState('');
   const [filterChallengeId, setFilterChallengeId] = useState('');
   const [approvedFilter, setApprovedFilter] = useState<'all' | 'yes' | 'no'>('all');
   const [sort, setSort] = useState<{ column: SortColumn; dir: SortDir }>({
     column: 'created_at',
     dir: 'desc',
   });
+  const [pageIndex, setPageIndex] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [ur, cr] = await Promise.all([
+      const [ur, cr, tr] = await Promise.all([
         apiFetch('/api/v1/admin/users?limit=200'),
         apiFetch('/api/v1/admin/challenges?limit=200'),
+        apiFetch('/api/v1/admin/tournaments?limit=100'),
       ]);
       if (cancelled) return;
       if (ur.ok) {
@@ -136,11 +151,20 @@ export function PostsListPage() {
           }),
         );
       }
+      if (tr.ok) {
+        const list = (await tr.json()) as AdminTournamentOption[];
+        setTournamentOptions(list);
+      }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const challengeOptionsForTournament = useMemo(() => {
+    if (!filterTournamentId) return challengeOptions;
+    return challengeOptions.filter((c) => c.tournament_id === filterTournamentId);
+  }, [challengeOptions, filterTournamentId]);
 
   const duplicateAuthorNames = useMemo(() => {
     const counts = new Map<string, number>();
@@ -151,6 +175,7 @@ export function PostsListPage() {
   }, [userOptions]);
 
   const onHeaderSort = useCallback((column: SortColumn) => {
+    setPageIndex(0);
     setSort((s) => {
       if (s.column === column) {
         return { column, dir: s.dir === 'asc' ? 'desc' : 'asc' };
@@ -163,9 +188,12 @@ export function PostsListPage() {
     setLoading(true);
     setError(null);
     try {
+      const skip = pageIndex * pageSize;
       const params = new URLSearchParams();
-      params.set('limit', '100');
+      params.set('skip', String(skip));
+      params.set('limit', String(pageSize));
       if (filterUserId) params.set('user_id', filterUserId);
+      if (filterTournamentId) params.set('tournament_id', filterTournamentId);
       if (filterChallengeId) params.set('challenge_id', filterChallengeId);
       if (approvedFilter === 'yes') params.set('approved', 'true');
       if (approvedFilter === 'no') params.set('approved', 'false');
@@ -176,13 +204,29 @@ export function PostsListPage() {
         setError(`Failed to load posts (${res.status})`);
         return;
       }
-      const data = (await res.json()) as PostRow[];
-      setRows(data);
+      const body = (await res.json()) as { items: PostRow[]; total: number };
+      const total = body.total;
+      const maxPageIndex = total === 0 ? 0 : Math.floor((total - 1) / pageSize);
+      if (pageIndex > maxPageIndex) {
+        setPageIndex(maxPageIndex);
+        return;
+      }
+      setRows(body.items);
+      setTotalCount(total);
       setError(null);
     } finally {
       setLoading(false);
     }
-  }, [filterUserId, filterChallengeId, approvedFilter, sort.column, sort.dir]);
+  }, [
+    pageIndex,
+    pageSize,
+    filterUserId,
+    filterTournamentId,
+    filterChallengeId,
+    approvedFilter,
+    sort.column,
+    sort.dir,
+  ]);
 
   useEffect(() => {
     void loadPosts();
@@ -220,7 +264,7 @@ export function PostsListPage() {
         setError(typeof j.detail === 'string' ? j.detail : `Delete failed (${res.status})`);
         return;
       }
-      setRows((prev) => prev.filter((r) => r.id !== postId));
+      await loadPosts();
     } finally {
       setDeletingId(null);
     }
@@ -273,7 +317,10 @@ export function PostsListPage() {
           <span style={{ fontSize: 13, fontWeight: 600 }}>Author</span>
           <select
             value={filterUserId}
-            onChange={(e) => setFilterUserId(e.target.value)}
+            onChange={(e) => {
+              setPageIndex(0);
+              setFilterUserId(e.target.value);
+            }}
             style={{ padding: '8px 10px', fontSize: 14, borderRadius: 6, border: '1px solid #ccc' }}
           >
             <option value="">All authors</option>
@@ -285,17 +332,44 @@ export function PostsListPage() {
             ))}
           </select>
         </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Tournament</span>
+          <select
+            value={filterTournamentId}
+            onChange={(e) => {
+              const tid = e.target.value;
+              setPageIndex(0);
+              setFilterTournamentId(tid);
+              setFilterChallengeId((prev) => {
+                if (!tid || !prev) return prev;
+                const ok = challengeOptions.some((c) => c.id === prev && c.tournament_id === tid);
+                return ok ? prev : '';
+              });
+            }}
+            style={{ padding: '8px 10px', fontSize: 14, borderRadius: 6, border: '1px solid #ccc' }}
+          >
+            <option value="">All tournaments</option>
+            {tournamentOptions.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 280 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>Challenge</span>
           <select
             value={filterChallengeId}
-            onChange={(e) => setFilterChallengeId(e.target.value)}
+            onChange={(e) => {
+              setPageIndex(0);
+              setFilterChallengeId(e.target.value);
+            }}
             style={{ padding: '8px 10px', fontSize: 14, borderRadius: 6, border: '1px solid #ccc', maxWidth: 420 }}
           >
             <option value="">All challenges</option>
-            {challengeOptions.map((c) => (
+            {challengeOptionsForTournament.map((c) => (
               <option key={c.id} value={c.id} title={`${c.tournament_name} · day ${c.day} · ${c.title}`}>
-                {c.tournament_name} · D{c.day} · {c.title}
+                {filterTournamentId ? `D${c.day} · ${c.title}` : `${c.tournament_name} · D${c.day} · ${c.title}`}
               </option>
             ))}
           </select>
@@ -304,7 +378,10 @@ export function PostsListPage() {
           <span style={{ fontSize: 13, fontWeight: 600 }}>Approved</span>
           <select
             value={approvedFilter}
-            onChange={(e) => setApprovedFilter(e.target.value as 'all' | 'yes' | 'no')}
+            onChange={(e) => {
+              setPageIndex(0);
+              setApprovedFilter(e.target.value as 'all' | 'yes' | 'no');
+            }}
             style={{ padding: '8px 10px', fontSize: 14, borderRadius: 6, border: '1px solid #ccc' }}
           >
             <option value="all">All</option>
@@ -314,6 +391,10 @@ export function PostsListPage() {
         </label>
         {loading ? <span style={{ fontSize: 13, color: '#6b7280', paddingBottom: 8 }}>Loading…</span> : null}
       </div>
+
+      {!loading && totalCount === 0 ? (
+        <p style={{ color: '#6b7280', marginBottom: 16 }}>No posts match these filters.</p>
+      ) : null}
 
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
         <thead>
@@ -340,6 +421,7 @@ export function PostsListPage() {
               sortDir={sort.dir}
               onSort={onHeaderSort}
             />
+            <th style={{ padding: 8, textAlign: 'right', width: 72 }}>Likes</th>
             <SortTh
               label="Approved"
               column="approved"
@@ -361,8 +443,8 @@ export function PostsListPage() {
           {rows.map((p) => (
             <tr
               key={p.id}
+              className="admin-table-click-row"
               onClick={() => navigate(`/posts/${p.id}`)}
-              style={{ borderBottom: '1px solid #eee', cursor: 'pointer' }}
             >
               <td style={{ padding: 8, verticalAlign: 'middle' }}>
                 {p.list_preview_storage_url ? (
@@ -387,6 +469,7 @@ export function PostsListPage() {
               <td style={{ padding: 8 }}>{p.author_display_name}</td>
               <td style={{ padding: 8 }}>{p.challenge_title}</td>
               <td style={{ padding: 8 }}>{p.photo_count}</td>
+              <td style={{ padding: 8, textAlign: 'right' }}>{p.like_count}</td>
               <td style={{ padding: 8, verticalAlign: 'middle' }}>{p.approved ? 'yes' : 'no'}</td>
               <td style={{ padding: 8 }}>{new Date(p.created_at).toLocaleString()}</td>
               <td
@@ -456,6 +539,73 @@ export function PostsListPage() {
         </tbody>
       </table>
 
+      {totalCount > 0 ? (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 16,
+            fontSize: 14,
+            color: '#374151',
+          }}
+        >
+          <span>
+            Showing {pageIndex * pageSize + 1}–{Math.min((pageIndex + 1) * pageSize, totalCount)} of {totalCount}
+            {' · '}
+            Page {pageIndex + 1} of {Math.ceil(totalCount / pageSize)}
+          </span>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontWeight: 600 }}>Per page</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPageIndex(0);
+              }}
+              style={{ padding: '6px 10px', fontSize: 14, borderRadius: 6, border: '1px solid #ccc' }}
+            >
+              {PAGE_SIZE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={pageIndex <= 0 || loading}
+            onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+            style={{
+              padding: '6px 14px',
+              fontSize: 14,
+              borderRadius: 6,
+              border: '1px solid #ccc',
+              background: pageIndex <= 0 || loading ? '#f3f4f6' : '#fff',
+              cursor: pageIndex <= 0 || loading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            disabled={loading || (pageIndex + 1) * pageSize >= totalCount}
+            onClick={() => setPageIndex((p) => p + 1)}
+            style={{
+              padding: '6px 14px',
+              fontSize: 14,
+              borderRadius: 6,
+              border: '1px solid #ccc',
+              background: loading || (pageIndex + 1) * pageSize >= totalCount ? '#f3f4f6' : '#fff',
+              cursor: loading || (pageIndex + 1) * pageSize >= totalCount ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Next
+          </button>
+        </div>
+      ) : null}
+
       <section style={{ marginTop: 32, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
         <h2 style={{ fontSize: 16, marginBottom: 8 }}>Development</h2>
         <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12, maxWidth: 520 }}>
@@ -464,15 +614,15 @@ export function PostsListPage() {
         </p>
         <button
           type="button"
-          disabled={purging || rows.length === 0}
+          disabled={purging || totalCount === 0}
           onClick={deleteAllPosts}
           style={{
             padding: '10px 16px',
-            background: rows.length === 0 ? '#e5e7eb' : '#fef2f2',
-            color: rows.length === 0 ? '#9ca3af' : '#b91c1c',
-            border: `1px solid ${rows.length === 0 ? '#d1d5db' : '#fecaca'}`,
+            background: totalCount === 0 ? '#e5e7eb' : '#fef2f2',
+            color: totalCount === 0 ? '#9ca3af' : '#b91c1c',
+            border: `1px solid ${totalCount === 0 ? '#d1d5db' : '#fecaca'}`,
             borderRadius: 6,
-            cursor: rows.length === 0 || purging ? 'not-allowed' : 'pointer',
+            cursor: totalCount === 0 || purging ? 'not-allowed' : 'pointer',
           }}
         >
           {purging ? 'Deleting…' : 'Delete all posts'}

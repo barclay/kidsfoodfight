@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { AuthenticatedStorageImage } from '../AuthenticatedStorageImage';
 import { apiFetch } from '../api';
 import type { AdminTeamListItem } from './TeamsListPage';
 
@@ -15,6 +16,7 @@ interface AdminUserDetail {
   last_seen_at: string | null;
   team_id: string | null;
   team: { id: string; name: string; invite_code: string } | null;
+  profile_photo_storage_url?: string | null;
 }
 
 export function UserEditPage() {
@@ -31,6 +33,10 @@ export function UserEditPage() {
   const [teams, setTeams] = useState<AdminTeamListItem[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoInputKey, setPhotoInputKey] = useState(0);
+  const [photoBusy, setPhotoBusy] = useState<'upload' | 'remove' | null>(null);
+  const [photoMessage, setPhotoMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -105,6 +111,58 @@ export function UserEditPage() {
     setMessage('Saved.');
   }
 
+  async function uploadProfilePhoto() {
+    if (!userId || !photoFile) return;
+    setPhotoMessage(null);
+    setError(null);
+    setPhotoBusy('upload');
+    try {
+      const fd = new FormData();
+      fd.append('file', photoFile);
+      const res = await apiFetch(`/api/v1/admin/users/${userId}/profile-photo`, {
+        method: 'POST',
+        body: fd,
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { detail?: string };
+        setError(j.detail ?? `Upload failed (${res.status})`);
+        return;
+      }
+      const u = (await res.json()) as AdminUserDetail;
+      setUser(u);
+      setPhotoFile(null);
+      setPhotoInputKey((k) => k + 1);
+      setPhotoMessage('Profile photo updated.');
+    } finally {
+      setPhotoBusy(null);
+    }
+  }
+
+  async function removeProfilePhoto() {
+    if (!userId || !user?.profile_photo_storage_url) return;
+    if (!window.confirm('Remove this user’s profile photo from the account? The image file will be deleted from local storage.')) {
+      return;
+    }
+    setPhotoMessage(null);
+    setError(null);
+    setPhotoBusy('remove');
+    try {
+      const res = await apiFetch(`/api/v1/admin/users/${userId}/profile-photo`, { method: 'DELETE' });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { detail?: string };
+        setError(j.detail ?? `Remove failed (${res.status})`);
+        return;
+      }
+      const u = (await res.json()) as AdminUserDetail;
+      setUser(u);
+      setPhotoFile(null);
+      setPhotoInputKey((k) => k + 1);
+      setPhotoMessage('Profile photo removed.');
+    } finally {
+      setPhotoBusy(null);
+    }
+  }
+
   const teamOptions = useMemo(() => {
     const byId = new Map(teams.map((t) => [t.id, t]));
     if (user?.team && !byId.has(user.team.id)) {
@@ -126,8 +184,78 @@ export function UserEditPage() {
     <div>
       <p>
         <Link to="/users">← Users</Link>
+        {' · '}
+        <Link to={`/users/${userId}`}>View</Link>
       </p>
       <h1>Edit user</h1>
+      <section
+        style={{
+          marginBottom: 24,
+          padding: 16,
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          maxWidth: 520,
+        }}
+      >
+        <h2 style={{ margin: '0 0 12px', fontSize: 16 }}>Profile photo</h2>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+          {user.profile_photo_storage_url ? (
+            <AuthenticatedStorageImage
+              storageUrl={user.profile_photo_storage_url}
+              alt=""
+              width={120}
+              height={120}
+              style={{
+                width: 120,
+                height: 120,
+                borderRadius: '50%',
+                objectFit: 'cover',
+                display: 'block',
+                border: '1px solid #e5e7eb',
+              }}
+            />
+          ) : (
+            <div
+              aria-hidden
+              style={{
+                width: 120,
+                height: 120,
+                borderRadius: '50%',
+                backgroundColor: '#e5e7eb',
+                border: '1px solid #d1d5db',
+              }}
+            />
+          )}
+          <div style={{ flex: '1 1 200px' }}>
+            <input
+              key={photoInputKey}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
+              style={{ display: 'block', marginBottom: 10, fontSize: 14 }}
+            />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <button
+                type="button"
+                disabled={!photoFile || photoBusy !== null}
+                onClick={() => void uploadProfilePhoto()}
+                style={{ padding: '8px 14px' }}
+              >
+                {photoBusy === 'upload' ? 'Uploading…' : 'Upload'}
+              </button>
+              <button
+                type="button"
+                disabled={!user.profile_photo_storage_url || photoBusy !== null}
+                onClick={() => void removeProfilePhoto()}
+                style={{ padding: '8px 14px', color: '#b91c1c', border: '1px solid #fecaca', background: '#fff' }}
+              >
+                {photoBusy === 'remove' ? 'Removing…' : 'Remove photo'}
+              </button>
+            </div>
+            {photoMessage ? <p style={{ color: '#15803d', marginTop: 10, marginBottom: 0, fontSize: 14 }}>{photoMessage}</p> : null}
+          </div>
+        </div>
+      </section>
       {user.team ? (
         <p>
           Team:{' '}
