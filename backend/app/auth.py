@@ -1,16 +1,18 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
-from fastapi import Depends, Request, Response
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, exceptions
 from fastapi_users.authentication import AuthenticationBackend, BearerTransport, JWTStrategy
 from fastapi_users.db import SQLAlchemyUserDatabase
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.models import User
+from app.invite_code import normalize_invite_code_input
+from app.models import Team, User
 from app.obscene_language import ensure_text_is_clean
 from app.schemas import UserCreate, UserUpdate
 
@@ -57,7 +59,47 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         request: Optional[Request] = None,
     ) -> User:
         ensure_text_is_clean(user_create.display_name)
-        return await super().create(user_create, safe=safe, request=request)
+        await self.validate_password(user_create.password, user_create)
+
+        existing_user = await self.user_db.get_by_email(user_create.email)
+        if existing_user is not None:
+            raise exceptions.UserAlreadyExists()
+
+        session = self.user_db.session
+        invite = normalize_invite_code_input(user_create.invite_code)
+
+        team_id: uuid.UUID
+        if invite is not None:
+            result = await session.execute(select(Team).where(Team.invite_code == invite))
+            team = result.scalar_one_or_none()
+            if team is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail='No team matches that invite code.',
+                )
+            team_id = team.id
+        else:
+            team_name = (user_create.team_name or '').strip()
+            ensure_text_is_clean(team_name)
+            new_team = Team(name=team_name)
+            session.add(new_team)
+            await session.flush()
+            team_id = new_team.id
+
+        user_dict: dict[str, Any] = (
+            user_create.create_update_dict()
+            if safe
+            else user_create.create_update_dict_superuser()
+        )
+        password = user_dict.pop('password')
+        user_dict['hashed_password'] = self.password_helper.hash(password)
+        user_dict.pop('invite_code', None)
+        user_dict.pop('team_name', None)
+        user_dict['team_id'] = team_id
+
+        created_user = await self.user_db.create(user_dict)
+        await self.on_after_register(created_user, request)
+        return created_user
 
     async def update(
         self,

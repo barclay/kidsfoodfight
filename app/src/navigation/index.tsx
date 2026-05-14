@@ -5,13 +5,15 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { Colors } from '../lib/colors';
 import ChallengesStack from './ChallengesStack';
+import type { RootStackParamList } from './types';
 import HomeScreen from '../screens/HomeScreen';
 import LeaderboardScreen from '../screens/LeaderboardScreen';
 import LoginScreen from '../screens/LoginScreen';
+import SignupScreen from '../screens/SignupScreen';
 import ProfileStack from './ProfileStack';
 
 const Tab = createBottomTabNavigator();
-const RootStack = createNativeStackNavigator();
+const RootStack = createNativeStackNavigator<RootStackParamList>();
 
 function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   const icons: Record<string, string> = {
@@ -88,7 +90,21 @@ export default function Navigation() {
         {token ? (
           <RootStack.Screen name="Main" component={MainTabs} />
         ) : (
-          <RootStack.Screen name="Login" component={LoginScreen} />
+          <RootStack.Group>
+            <RootStack.Screen name="Login" component={LoginScreen} />
+            <RootStack.Screen
+              name="Signup"
+              component={SignupScreen}
+              options={{
+                headerShown: true,
+                title: 'Create account',
+                headerStyle: { backgroundColor: Colors.surface },
+                headerTintColor: Colors.orange,
+                headerTitleStyle: { fontWeight: '700' },
+                headerShadowVisible: false,
+              }}
+            />
+          </RootStack.Group>
         )}
       </RootStack.Navigator>
     </NavigationContainer>

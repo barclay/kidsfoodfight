@@ -1,5 +1,11 @@
 import type { AvailableChallenge } from '../types/challenges';
 
+export type RootStackParamList = {
+  Main: undefined;
+  Login: undefined;
+  Signup: undefined;
+};
+
 export type ChallengesStackParamList = {
   ChallengesList: undefined;
   ChallengeDetail: { challenge: AvailableChallenge };

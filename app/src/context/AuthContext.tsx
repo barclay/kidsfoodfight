@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { loginWithEmailPassword } from '../lib/authApi';
+import { loginWithEmailPassword, registerUser, type RegisterPayload } from '../lib/authApi';
 import { fetchCurrentUser } from '../lib/usersApi';
 import type { UserMe } from '../types/userMe';
 
@@ -20,6 +20,7 @@ type AuthContextValue = {
   me: UserMe | null;
   refreshMe: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (payload: RegisterPayload) => Promise<void>;
   signOut: () => Promise<void>;
 };
 
@@ -83,6 +84,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(accessToken);
   }, []);
 
+  const signUp = useCallback(
+    async (payload: RegisterPayload) => {
+      await registerUser(payload);
+      await signIn(payload.email, payload.password);
+    },
+    [signIn],
+  );
+
   const signOut = useCallback(async () => {
     if (await SecureStore.isAvailableAsync()) {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
@@ -98,9 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       me,
       refreshMe,
       signIn,
+      signUp,
       signOut,
     }),
-    [token, isReady, me, refreshMe, signIn, signOut],
+    [token, isReady, me, refreshMe, signIn, signUp, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime
+from typing import Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi_users import schemas
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.invite_code import INVITE_CODE_LENGTH, is_valid_invite_code_format, normalize_invite_code_input
 from app.models import DEFAULT_USER_TIMEZONE
 
 
@@ -34,6 +36,15 @@ class UserCreate(schemas.BaseUserCreate):
         default=None,
         description='IANA time zone from the client; defaults to US Pacific if omitted.',
     )
+    team_name: str | None = Field(
+        default=None,
+        max_length=128,
+        description='Required when not using an invite code: name for the new family team.',
+    )
+    invite_code: str | None = Field(
+        default=None,
+        description='Optional team invite code; when set, the user joins that team.',
+    )
 
     @field_validator('timezone', mode='before')
     @classmethod
@@ -55,6 +66,23 @@ class UserCreate(schemas.BaseUserCreate):
         if not any(c.isdigit() for c in v):
             raise ValueError('must contain at least one digit')
         return v
+
+    @model_validator(mode='after')
+    def team_name_or_invite(self) -> Self:
+        invite = normalize_invite_code_input(self.invite_code)
+        if invite is not None:
+            if not is_valid_invite_code_format(invite):
+                raise ValueError(
+                    f'invite_code must be exactly {INVITE_CODE_LENGTH} characters '
+                    '(letters A–Z except O, digits 1–9; spaces and hyphens are ignored)'
+                )
+            return self
+        name = (self.team_name or '').strip()
+        if not name:
+            raise ValueError('team_name is required when invite_code is not provided')
+        if len(name) > 128:
+            raise ValueError('team_name must be at most 128 characters')
+        return self.model_copy(update={'team_name': name})
 
 
 class UserUpdate(schemas.BaseUserUpdate):

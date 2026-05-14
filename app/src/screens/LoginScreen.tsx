@@ -11,10 +11,14 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { Colors } from '../lib/colors';
+import type { RootStackParamList } from '../navigation/types';
 
 export default function LoginScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Login'>>();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -99,6 +103,14 @@ export default function LoginScreen() {
                 <Text style={styles.primaryButtonText}>Sign in</Text>
               )}
             </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [styles.linkWrap, pressed && styles.linkWrapPressed]}
+              onPress={() => navigation.navigate('Signup')}
+              disabled={submitting}
+            >
+              <Text style={styles.linkText}>Create an account</Text>
+            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -179,5 +191,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  linkWrap: {
+    marginTop: 20,
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  linkWrapPressed: {
+    opacity: 0.7,
+  },
+  linkText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.teal,
   },
 });
