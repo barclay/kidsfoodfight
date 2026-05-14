@@ -3,6 +3,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Platform,
   Pressable,
   RefreshControl,
@@ -14,9 +15,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import type { ChallengesStackParamList } from '../navigation/types';
-import { fetchAvailableChallenges } from '../lib/challengesApi';
+import { fetchAvailableChallenges, fetchJoinableTournaments, joinTournament } from '../lib/challengesApi';
 import { Colors } from '../lib/colors';
 import type { AvailableChallenge } from '../types/challenges';
+import type { JoinableTournament } from '../types/joinableTournament';
 
 type Section = { title: string; data: AvailableChallenge[] };
 type Nav = NativeStackNavigationProp<ChallengesStackParamList, 'ChallengesList'>;
@@ -78,9 +80,11 @@ export default function ChallengesListScreen() {
   const navigation = useNavigation<Nav>();
   const { token } = useAuth();
   const [items, setItems] = useState<AvailableChallenge[]>([]);
+  const [joinableTournaments, setJoinableTournaments] = useState<JoinableTournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [joiningTournamentId, setJoiningTournamentId] = useState<string | null>(null);
 
   const sections = useMemo(() => buildSections(items), [items]);
 
@@ -89,8 +93,12 @@ export default function ChallengesListScreen() {
       return;
     }
     setError(null);
-    const data = await fetchAvailableChallenges(token);
+    const [data, joinable] = await Promise.all([
+      fetchAvailableChallenges(token),
+      fetchJoinableTournaments(token),
+    ]);
     setItems(data);
+    setJoinableTournaments(joinable);
   }, [token]);
 
   useFocusEffect(
@@ -134,6 +142,26 @@ export default function ChallengesListScreen() {
     }
   }, [token, load]);
 
+  const onJoinTournament = useCallback(
+    async (tournament: JoinableTournament) => {
+      if (!token || joiningTournamentId) {
+        return;
+      }
+      setJoiningTournamentId(tournament.tournament_id);
+      setError(null);
+      try {
+        await joinTournament(token, tournament.tournament_id);
+        await load();
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Could not join tournament.';
+        Alert.alert('Could not join', message);
+      } finally {
+        setJoiningTournamentId(null);
+      }
+    },
+    [token, joiningTournamentId, load],
+  );
+
   if (!token) {
     return null;
   }
@@ -176,11 +204,51 @@ export default function ChallengesListScreen() {
             </View>
           ) : (
             <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No challenges right now</Text>
-              <Text style={styles.emptyBody}>
-                Join a team enrolled in an active tournament to see challenges here. Completed challenges
-                disappear from this list. Days follow your profile time zone.
-              </Text>
+              {joinableTournaments.length > 0 ? (
+                <>
+                  <Text style={styles.emptyTitle}>A tournament is running</Text>
+                  <Text style={styles.emptyBody}>
+                    Your team can join an active event below to unlock challenges. Completed challenges
+                    disappear from this list. Days follow your profile time zone.
+                  </Text>
+                  <View style={styles.joinableList}>
+                    {joinableTournaments.map((t) => {
+                      const busy = joiningTournamentId === t.tournament_id;
+                      return (
+                        <View key={t.tournament_id} style={styles.joinableCard}>
+                          <Text style={styles.joinableName}>{t.tournament_name}</Text>
+                          <Text style={styles.joinableMeta}>
+                            Day {t.current_local_day} of {t.length_days}
+                          </Text>
+                          <Pressable
+                            style={({ pressed }) => [
+                              styles.joinCta,
+                              (busy || joiningTournamentId !== null) && styles.joinCtaDisabled,
+                              pressed && styles.joinCtaPressed,
+                            ]}
+                            disabled={busy || joiningTournamentId !== null}
+                            onPress={() => void onJoinTournament(t)}
+                          >
+                            {busy ? (
+                              <ActivityIndicator color="#fff" />
+                            ) : (
+                              <Text style={styles.joinCtaText}>Join tournament</Text>
+                            )}
+                          </Pressable>
+                        </View>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.emptyTitle}>No challenges right now</Text>
+                  <Text style={styles.emptyBody}>
+                    Join a team enrolled in an active tournament to see challenges here. Completed challenges
+                    disappear from this list. Days follow your profile time zone.
+                  </Text>
+                </>
+              )}
             </View>
           )
         }
@@ -258,6 +326,48 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+  joinableList: {
+    marginTop: 20,
+    width: '100%',
+    gap: 14,
+  },
+  joinableCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 16,
+  },
+  joinableName: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.purple,
+    marginBottom: 4,
+  },
+  joinableMeta: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginBottom: 14,
+  },
+  joinCta: {
+    backgroundColor: Colors.orange,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  joinCtaDisabled: {
+    opacity: 0.65,
+  },
+  joinCtaPressed: {
+    opacity: 0.9,
+  },
+  joinCtaText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
   },
   listContent: {
     paddingBottom: 24,

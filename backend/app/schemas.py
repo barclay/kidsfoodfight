@@ -162,6 +162,25 @@ class AvailableChallengeItem(BaseModel):
     is_focus_day: bool
 
 
+class JoinableTournamentItem(BaseModel):
+    """Tournament running on the user's local calendar that their team is not enrolled in yet."""
+
+    tournament_id: uuid.UUID
+    tournament_name: str
+    #: 1-based day index within the tournament (user's local calendar), same as ``/challenges/available``.
+    current_local_day: int = Field(ge=1)
+    length_days: int = Field(ge=1)
+
+
+class JoinTournamentBody(BaseModel):
+    tournament_id: uuid.UUID
+
+
+class JoinTournamentResult(BaseModel):
+    tournament_id: uuid.UUID
+    tournament_name: str
+
+
 class MeTournamentLeaderboardRow(BaseModel):
     rank: int = Field(ge=1)
     team_id: uuid.UUID
