@@ -1,14 +1,19 @@
+# Processed at container start by the nginx image (envsubst).
+# Docker Compose: defaults below. Render: set API_PROXY_TARGET to your API origin (https://…)
+# and API_PROXY_HOST to that host’s name only (for the Host header / TLS SNI).
+
 server {
     listen 80;
     server_name _;
 
     location /api/ {
-        proxy_pass http://backend:8000;
+        proxy_pass ${API_PROXY_TARGET};
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        proxy_set_header Host ${API_PROXY_HOST};
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_ssl_server_name on;
     }
 
     location / {

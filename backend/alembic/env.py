@@ -1,5 +1,4 @@
 import asyncio
-import os
 from logging.config import fileConfig
 
 from sqlalchemy.ext.asyncio import async_engine_from_config
@@ -7,24 +6,21 @@ from sqlalchemy import pool
 
 from alembic import context
 
-# Import Base and all models so autogenerate can detect them
-from app.database import Base
-import app.models  # noqa: F401 — registers models on Base.metadata
+from app.config import settings
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = Base.metadata
+# Same URL as the app (``DATABASE_URL`` on Render is coerced to ``+asyncpg`` in ``Settings``).
+config.set_main_option('sqlalchemy.url', settings.database_url)
 
-# Override sqlalchemy.url from the DATABASE_URL env var when present
-# (used inside Docker where the .env is loaded by docker compose)
-database_url = os.environ.get('DATABASE_URL')
-if database_url:
-    # Alembic needs the sync driver for offline mode; swap asyncpg → psycopg2
-    # For online/async migrations we keep the asyncpg driver as-is
-    config.set_main_option('sqlalchemy.url', database_url)
+# Import Base and all models after URL is set (``app.database`` creates the async engine on import).
+from app.database import Base
+import app.models  # noqa: F401 — registers models on Base.metadata
+
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:

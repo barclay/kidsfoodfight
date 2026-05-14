@@ -1,14 +1,39 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def normalize_postgres_url_for_async_sqlalchemy(url: str) -> str:
+    """Render/Heroku-style ``DATABASE_URL`` is often ``postgres://`` or ``postgresql://`` without a
+    driver. SQLAlchemy async needs ``postgresql+asyncpg`` or it falls back to sync psycopg2."""
+    u = url.strip()
+    if not u:
+        return u
+    if u.startswith('postgres://'):
+        u = 'postgresql://' + u.removeprefix('postgres://')
+    if '://' not in u:
+        return u
+    scheme, _, rest = u.partition('://')
+    if '+' in scheme:
+        return u
+    if scheme == 'postgresql':
+        return f'postgresql+asyncpg://{rest}'
+    return u
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
     database_url: str = 'postgresql+asyncpg://kff:kff@db:5432/kff'
+
+    @field_validator('database_url', mode='before')
+    @classmethod
+    def database_url_asyncpg(cls, v: object) -> object:
+        if isinstance(v, str):
+            return normalize_postgres_url_for_async_sqlalchemy(v)
+        return v
     secret_key: str = 'change-me-in-production'
     algorithm: str = 'HS256'
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days

@@ -16,6 +16,8 @@ services:
       timeout: 5s
       retries: 10
 
+  # No ``command:`` here — use the image CMD (no ``--reload``). For HMR API, use ``./scripts/run``
+  # (merges ``docker-compose.dev.yml``, which overrides the backend command with ``--reload``).
   backend:
     build: ./backend
     restart: unless-stopped

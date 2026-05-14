@@ -11,4 +11,5 @@ RUN chmod +x /docker-entrypoint.sh
 COPY . .
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Render and other hosts set ``PORT``; default 8000 for local ``docker compose``.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
