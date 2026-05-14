@@ -9,7 +9,7 @@ interface TournamentOption {
 
 export interface ChallengeRow {
   id: string;
-  tournament_id: string;
+  tournament_id: string | null;
   tournament_name: string;
   title: string;
   description: string | null;

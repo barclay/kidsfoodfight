@@ -63,6 +63,8 @@ export function TournamentViewPage() {
   const [cloneLengthDays, setCloneLengthDays] = useState(7);
   const [cloneBusy, setCloneBusy] = useState(false);
   const [cloneError, setCloneError] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tournamentId) return;
@@ -109,6 +111,25 @@ export function TournamentViewPage() {
     setCloneLengthDays(tournament.length_days);
     setCloneError(null);
     setCloneOpen(true);
+  }
+
+  async function onDeleteTournament() {
+    if (!tournamentId || deleteBusy) return;
+    const ok = window.confirm(
+      'Delete this tournament? Team enrollments and tournament scores for it will be removed. ' +
+        'Challenges stay in the system (unlinked from this tournament), and existing posts and likes are not deleted.',
+    );
+    if (!ok) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    const res = await apiFetch(`/api/v1/admin/tournaments/${tournamentId}`, { method: 'DELETE' });
+    setDeleteBusy(false);
+    if (!res.ok) {
+      const j = (await res.json().catch(() => ({}))) as { detail?: string | unknown };
+      setDeleteError(typeof j.detail === 'string' ? j.detail : `Delete failed (${res.status})`);
+      return;
+    }
+    navigate('/tournaments');
   }
 
   async function onCloneSubmit(e: FormEvent) {
@@ -185,8 +206,26 @@ export function TournamentViewPage() {
           >
             Edit
           </Link>
+          <button
+            type="button"
+            onClick={onDeleteTournament}
+            disabled={deleteBusy}
+            style={{
+              padding: '8px 16px',
+              background: '#fff',
+              color: '#b91c1c',
+              border: '1px solid #fca5a5',
+              borderRadius: 6,
+              fontSize: 14,
+              cursor: deleteBusy ? 'wait' : 'pointer',
+            }}
+          >
+            {deleteBusy ? 'Deleting…' : 'Delete'}
+          </button>
         </div>
       </div>
+
+      {deleteError ? <p style={{ color: '#b91c1c', marginTop: 8 }}>{deleteError}</p> : null}
 
       <dl style={{ marginTop: 16, maxWidth: 560 }}>
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Start</dt>

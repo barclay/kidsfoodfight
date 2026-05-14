@@ -51,6 +51,8 @@ async def sync_team_challenge_credit(
     if ch is None:
         return
     challenge_points, tournament_id = int(ch.points), ch.tournament_id
+    if tournament_id is None:
+        return
 
     tt_id = await db.scalar(
         select(TeamTournament.id).where(

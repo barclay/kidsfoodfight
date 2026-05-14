@@ -78,11 +78,12 @@ def _assert_challenge_day(tournament: Tournament, day: int) -> None:
         )
 
 
-def _challenge_to_admin_item(challenge: Challenge, tournament_name: str) -> AdminChallengeListItem:
+def _challenge_to_admin_item(challenge: Challenge, tournament_name: str | None) -> AdminChallengeListItem:
+    display_name = tournament_name if tournament_name is not None else '(tournament deleted)'
     return AdminChallengeListItem(
         id=challenge.id,
         tournament_id=challenge.tournament_id,
-        tournament_name=tournament_name,
+        tournament_name=display_name,
         title=challenge.title,
         description=challenge.description,
         challenge_type=challenge.challenge_type.value,
@@ -711,6 +712,15 @@ async def admin_patch_tournament(
     return t
 
 
+@router.delete('/tournaments/{tournament_id}', status_code=status.HTTP_204_NO_CONTENT)
+async def admin_delete_tournament(db: DbSession, _: SuperUser, tournament_id: uuid.UUID) -> None:
+    t = await db.get(Tournament, tournament_id)
+    if t is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+    await db.delete(t)
+    await db.flush()
+
+
 @router.post(
     '/tournaments/{tournament_id}/clone',
     response_model=AdminTournamentDetail,
@@ -778,8 +788,8 @@ async def admin_list_challenges(
 ) -> list[AdminChallengeListItem]:
     stmt = (
         select(Challenge, Tournament.name.label('tournament_name'))
-        .join(Tournament, Challenge.tournament_id == Tournament.id)
-        .order_by(Tournament.start_date.desc(), Challenge.day.asc(), Challenge.title.asc())
+        .outerjoin(Tournament, Challenge.tournament_id == Tournament.id)
+        .order_by(Tournament.start_date.desc().nulls_last(), Challenge.day.asc(), Challenge.title.asc())
         .offset(skip)
         .limit(limit)
     )
@@ -796,7 +806,7 @@ async def admin_list_challenges(
 async def admin_get_challenge(db: DbSession, _: SuperUser, challenge_id: uuid.UUID) -> AdminChallengeDetail:
     stmt = (
         select(Challenge, Tournament.name.label('tournament_name'))
-        .join(Tournament, Challenge.tournament_id == Tournament.id)
+        .outerjoin(Tournament, Challenge.tournament_id == Tournament.id)
         .where(Challenge.id == challenge_id)
     )
     result = await db.execute(stmt)
@@ -863,14 +873,19 @@ async def admin_patch_challenge(
         c.day = data['day']
 
     tournament = await db.get(Tournament, c.tournament_id)
-    assert tournament is not None
-    _assert_challenge_day(tournament, c.day)
+    if tournament is not None:
+        _assert_challenge_day(tournament, c.day)
+    elif c.day < 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='day must be at least 1',
+        )
 
     await db.flush()
     await db.refresh(c)
     tournament = await db.get(Tournament, c.tournament_id)
-    assert tournament is not None
-    return _challenge_to_admin_item(c, tournament.name)
+    tname = tournament.name if tournament is not None else None
+    return _challenge_to_admin_item(c, tname)
 
 
 @router.delete('/challenges/{challenge_id}', status_code=status.HTTP_204_NO_CONTENT)

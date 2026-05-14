@@ -221,7 +221,7 @@ class AdminTournamentPatch(BaseModel):
 
 class AdminChallengeListItem(BaseModel):
     id: uuid.UUID
-    tournament_id: uuid.UUID
+    tournament_id: uuid.UUID | None
     tournament_name: str
     title: str
     description: str | None

@@ -4,7 +4,7 @@ import { apiFetch } from '../api';
 
 interface ChallengeDetail {
   id: string;
-  tournament_id: string;
+  tournament_id: string | null;
   tournament_name: string;
   title: string;
   description: string | null;
@@ -66,7 +66,11 @@ export function ChallengeViewPage() {
       <dl style={{ marginTop: 16, maxWidth: 560 }}>
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Tournament</dt>
         <dd style={{ margin: 0 }}>
-          <Link to={`/tournaments/${c.tournament_id}`}>{c.tournament_name}</Link>
+          {c.tournament_id ? (
+            <Link to={`/tournaments/${c.tournament_id}`}>{c.tournament_name}</Link>
+          ) : (
+            <span>{c.tournament_name}</span>
+          )}
         </dd>
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Day</dt>
         <dd style={{ margin: 0 }}>{c.day}</dd>

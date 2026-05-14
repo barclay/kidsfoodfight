@@ -25,7 +25,7 @@ interface AdminUserOption {
 
 interface AdminChallengeOption {
   id: string;
-  tournament_id: string;
+  tournament_id: string | null;
   tournament_name: string;
   title: string;
   day: number;

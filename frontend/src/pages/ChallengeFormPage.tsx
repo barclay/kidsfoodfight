@@ -9,7 +9,7 @@ interface TournamentOption {
 
 interface ChallengeDetail {
   id: string;
-  tournament_id: string;
+  tournament_id: string | null;
   title: string;
   description: string | null;
   challenge_type: string;
@@ -73,7 +73,7 @@ export function ChallengeFormPage() {
       }
       const c = (await res.json()) as ChallengeDetail;
       if (cancelled) return;
-      setTournamentId(c.tournament_id);
+      setTournamentId(c.tournament_id ?? '');
       setTitle(c.title);
       setDescription(c.description ?? '');
       setChallengeType(c.challenge_type);

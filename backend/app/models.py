@@ -126,7 +126,7 @@ class Tournament(Base):
     )
     challenges: Mapped[list['Challenge']] = relationship(
         back_populates='tournament',
-        cascade='all, delete-orphan',
+        passive_deletes=True,
         order_by='Challenge.day',
     )
 
@@ -135,12 +135,11 @@ class Challenge(Base):
     """
     A task within a tournament (prototype ``event_challenges`` / global challenges).
 
-    ``day`` is 1-based within the tournament (day 1 aligns with ``tournament.start_date``).
-    ``start_date`` / ``end_date`` are derived from ``tournament.start_date`` and ``day`` so
-    schedule stays consistent with the tournament clock.
+    ``tournament_id`` may be NULL after the parent tournament is deleted; challenges, posts,
+    and likes are retained. ``day`` is still 1-based relative to the tournament when linked.
 
-    Persisted ``challenge_type`` matches the prototype's ``type`` column (``food``, ``fitness``,
-    ``shopping``, ``game``). Enforce ``day <= tournament.length_days`` in application logic.
+    ``start_date`` / ``end_date`` are derived from ``tournament.start_date`` and ``day`` when a
+    tournament is linked. Enforce ``day <= tournament.length_days`` in application logic when linked.
     """
 
     __tablename__ = 'challenges'
@@ -150,10 +149,10 @@ class Challenge(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    tournament_id: Mapped[uuid.UUID] = mapped_column(
+    tournament_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid,
-        ForeignKey('tournaments.id', ondelete='CASCADE'),
-        nullable=False,
+        ForeignKey('tournaments.id', ondelete='SET NULL'),
+        nullable=True,
         index=True,
     )
     title: Mapped[str] = mapped_column(String(256), nullable=False)
@@ -168,18 +167,22 @@ class Challenge(Base):
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
 
-    tournament: Mapped['Tournament'] = relationship(back_populates='challenges')
+    tournament: Mapped['Tournament | None'] = relationship(back_populates='challenges')
 
     posts: Mapped[list['Post']] = relationship(back_populates='challenge', cascade='all, delete-orphan')
 
     @property
-    def start_date(self) -> datetime:
+    def start_date(self) -> datetime | None:
         """First instant of this challenge's tournament day (not persisted)."""
+        if self.tournament is None:
+            return None
         return self.tournament.start_date + timedelta(days=self.day - 1)
 
     @property
-    def end_date(self) -> datetime:
+    def end_date(self) -> datetime | None:
         """Last representable instant before the next tournament day boundary (not persisted)."""
+        if self.tournament is None:
+            return None
         return self.tournament.start_date + timedelta(days=self.day) - timedelta.resolution
 
 
