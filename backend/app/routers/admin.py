@@ -711,6 +711,63 @@ async def admin_patch_tournament(
     return t
 
 
+@router.post(
+    '/tournaments/{tournament_id}/clone',
+    response_model=AdminTournamentDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+async def admin_clone_tournament(
+    db: DbSession,
+    _: SuperUser,
+    tournament_id: uuid.UUID,
+    body: AdminTournamentCreate,
+) -> Tournament:
+    stmt = (
+        select(Tournament)
+        .options(selectinload(Tournament.challenges))
+        .where(Tournament.id == tournament_id)
+    )
+    result = await db.execute(stmt)
+    donor = result.unique().scalar_one_or_none()
+    if donor is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Tournament not found')
+
+    challenges_sorted = sorted(donor.challenges or [], key=lambda c: (c.day, c.title))
+    for c in challenges_sorted:
+        if c.day > body.length_days:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f'length_days ({body.length_days}) is smaller than an existing challenge day ({c.day}); '
+                    'increase length or remove/adjust challenges on the source tournament first.'
+                ),
+            )
+
+    new_t = Tournament(
+        name=body.name,
+        description=body.description,
+        start_date=body.start_date,
+        length_days=body.length_days,
+    )
+    db.add(new_t)
+    await db.flush()
+
+    for c in challenges_sorted:
+        db.add(
+            Challenge(
+                tournament_id=new_t.id,
+                title=c.title,
+                description=c.description,
+                challenge_type=c.challenge_type,
+                points=c.points,
+                day=c.day,
+            )
+        )
+    await db.flush()
+    await db.refresh(new_t)
+    return new_t
+
+
 @router.get('/challenges', response_model=list[AdminChallengeListItem])
 async def admin_list_challenges(
     db: DbSession,

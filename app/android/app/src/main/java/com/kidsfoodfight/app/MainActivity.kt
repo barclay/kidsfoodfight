@@ -1,4 +1,4 @@
-package com.anonymous.app
+package com.kidsfoodfight.app
 
 import android.os.Build
 import android.os.Bundle

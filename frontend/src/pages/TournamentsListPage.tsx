@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api';
 
@@ -11,10 +11,63 @@ interface TournamentRow {
   created_at: string;
 }
 
+type SortKey = 'name' | 'start_date' | 'length_days';
+type SortDir = 'asc' | 'desc';
+
+const thButton: CSSProperties = {
+  background: 'none',
+  border: 'none',
+  padding: 0,
+  margin: 0,
+  font: 'inherit',
+  fontWeight: 600,
+  cursor: 'pointer',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  color: 'inherit',
+  textAlign: 'left',
+};
+
+function SortIndicator({ active, dir }: { active: boolean; dir: SortDir }) {
+  return (
+    <span style={{ fontSize: 12, opacity: active ? 1 : 0.35 }} aria-hidden>
+      {active ? (dir === 'asc' ? '↑' : '↓') : '↕'}
+    </span>
+  );
+}
+
 export function TournamentsListPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState<TournamentRow[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>('start_date');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  function onHeaderClick(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(key === 'name' ? 'asc' : 'desc');
+  }
+
+  const sortedRows = useMemo(() => {
+    const copy = [...rows];
+    copy.sort((a, b) => {
+      let cmp: number;
+      if (sortKey === 'name') {
+        cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      } else if (sortKey === 'start_date') {
+        cmp = new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+      } else {
+        cmp = a.length_days - b.length_days;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return copy;
+  }, [rows, sortKey, sortDir]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,13 +98,52 @@ export function TournamentsListPage() {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
         <thead>
           <tr style={{ textAlign: 'left', borderBottom: '1px solid #ccc' }}>
-            <th style={{ padding: 8 }}>Name</th>
-            <th style={{ padding: 8 }}>Start</th>
-            <th style={{ padding: 8 }}>Days</th>
+            <th style={{ padding: 8 }}>
+              <button
+                type="button"
+                style={thButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onHeaderClick('name');
+                }}
+                aria-sort={sortKey === 'name' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                Name
+                <SortIndicator active={sortKey === 'name'} dir={sortDir} />
+              </button>
+            </th>
+            <th style={{ padding: 8 }}>
+              <button
+                type="button"
+                style={thButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onHeaderClick('start_date');
+                }}
+                aria-sort={sortKey === 'start_date' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                Start
+                <SortIndicator active={sortKey === 'start_date'} dir={sortDir} />
+              </button>
+            </th>
+            <th style={{ padding: 8 }}>
+              <button
+                type="button"
+                style={thButton}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onHeaderClick('length_days');
+                }}
+                aria-sort={sortKey === 'length_days' ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+              >
+                Days
+                <SortIndicator active={sortKey === 'length_days'} dir={sortDir} />
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((t) => (
+          {sortedRows.map((t) => (
             <tr
               key={t.id}
               className="admin-table-click-row"

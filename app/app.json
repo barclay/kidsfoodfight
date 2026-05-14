@@ -26,7 +26,7 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.app"
+      "package": "com.kidsfoodfight.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
