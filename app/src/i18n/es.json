@@ -1,0 +1,172 @@
+{
+  "brand": {
+    "title": "Kids Food Fight"
+  },
+  "tabs": {
+    "home": "Inicio",
+    "challenges": "Retos",
+    "leaderboard": "Clasificación",
+    "profile": "Perfil"
+  },
+  "navigation": {
+    "createAccount": "Crear cuenta",
+    "challenge": "Reto",
+    "submitProof": "Enviar prueba",
+    "stickers": "Stickers",
+    "cropPhoto": "Recortar foto"
+  },
+  "common": {
+    "retry": "Toca para reintentar",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "edit": "Editar",
+    "day": "Día {{day}}",
+    "points": "{{count}} pts"
+  },
+  "challengeTypes": {
+    "food": "Comida",
+    "fitness": "Ejercicio",
+    "shopping": "Compras",
+    "game": "Juego"
+  },
+  "language": {
+    "sectionTitle": "Idioma",
+    "system": "Predeterminado del sistema",
+    "english": "Inglés",
+    "spanish": "Español"
+  },
+  "login": {
+    "tagline": "Inicia sesión para continuar",
+    "email": "Correo",
+    "password": "Contraseña",
+    "emailPlaceholder": "tu@familia.com",
+    "passwordPlaceholder": "Contraseña",
+    "signIn": "Iniciar sesión",
+    "createAccount": "Crear una cuenta",
+    "errorMissing": "Escribe tu correo y contraseña.",
+    "errorFailed": "No se pudo iniciar sesión."
+  },
+  "signup": {
+    "passwordHint": "Al menos 6 caracteres, una letra, un número, sin espacios.",
+    "newTeam": "Equipo nuevo",
+    "haveInvite": "Tengo invitación",
+    "displayName": "Nombre visible",
+    "displayNamePlaceholder": "Cómo te verán en la app",
+    "email": "Correo",
+    "emailPlaceholder": "tu@familia.com",
+    "password": "Contraseña",
+    "passwordPlaceholder": "Elige una contraseña",
+    "confirmPassword": "Confirmar contraseña",
+    "confirmPlaceholder": "Vuelve a escribir la contraseña",
+    "familyTeamName": "Nombre del equipo familiar",
+    "teamNamePlaceholder": "p. ej., Los López",
+    "inviteCode": "Código de invitación del equipo",
+    "invitePlaceholder": "Código de 14 caracteres de tu capitán",
+    "createAccount": "Crear cuenta",
+    "errorRequired": "Nombre visible, correo y contraseña son obligatorios.",
+    "errorPasswordMismatch": "Las contraseñas no coinciden.",
+    "errorTeamName": "Escribe un nombre para tu equipo familiar.",
+    "errorInvite": "Escribe el código de invitación del equipo.",
+    "errorFailed": "No se pudo crear la cuenta."
+  },
+  "home": {
+    "errorLoad": "No se pudo cargar el feed.",
+    "errorMore": "No se pudo cargar más.",
+    "emptyTitle": "Aún no hay publicaciones",
+    "emptyBody": "Las publicaciones de retos aprobadas aparecerán aquí."
+  },
+  "challenges": {
+    "title": "Retos",
+    "errorLoad": "No se pudieron cargar los retos.",
+    "joinFailedTitle": "No se pudo unir",
+    "joinFailedBody": "No se pudo unir al torneo.",
+    "emptyRunningTitle": "Hay un torneo en curso",
+    "emptyRunningBody": "Tu equipo puede unirse a un evento activo abajo para desbloquear retos. Los retos completados desaparecen de esta lista. Los días siguen la zona horaria de tu perfil.",
+    "emptyIdleTitle": "No hay retos ahora",
+    "emptyIdleBody": "Únete a un equipo inscrito en un torneo activo para ver retos aquí. Los retos completados desaparecen de esta lista. Los días siguen la zona horaria de tu perfil.",
+    "joinTournament": "Unirse al torneo",
+    "dayOfTotal": "Día {{current}} de {{total}}"
+  },
+  "challengeDetail": {
+    "noInstructions": "Sin instrucciones extra — ¡muéstranos lo que hiciste!",
+    "letsGo": "¡Vamos!"
+  },
+  "challengePost": {
+    "hint": "Añade hasta {{max}} fotos y/o un pie de foto. Si añades fotos, en la siguiente pantalla podrás colocar stickers faciales opcionales antes de enviar. Las publicaciones solo texto omiten ese paso.",
+    "choosePhotos": "Elegir fotos",
+    "takePhoto": "Tomar foto",
+    "photoCount": "{{current}}/{{max}} fotos",
+    "captionLabel": "Pie de foto (opcional)",
+    "captionPlaceholder": "Cuéntanos qué hiciste…",
+    "continueStickers": "Continuar — stickers",
+    "submitCaptionOnly": "Enviar solo texto",
+    "errorLibrary": "Se necesita acceso a la galería para añadir imágenes.",
+    "errorCamera": "Se necesita acceso a la cámara para tomar una foto.",
+    "errorCaptionOrPhotos": "Añade una nota breve para publicar solo texto, o añade fotos para continuar a los stickers.",
+    "cameraWebTitle": "Cámara",
+    "cameraWebBody": "Usa un dispositivo con la app Expo para tomar una foto, o elige de la galería en la web.",
+    "uploadTitle": "Publicando tu reto",
+    "uploadSuccess": "Envío enviado"
+  },
+  "challengeEditor": {
+    "sub": "Elige un sticker y tócalo para colocarlo",
+    "clearPhoto": "Borrar esta foto",
+    "submit": "Enviar reto",
+    "uploadTitle": "Publicando tu reto",
+    "uploadSuccess": "Envío enviado"
+  },
+  "leaderboard": {
+    "title": "Clasificación",
+    "subtitle": "Torneos activos en los que tu equipo está inscrito",
+    "errorLoad": "No se pudo cargar la clasificación.",
+    "emptyTitle": "No hay clasificación de torneo activo",
+    "emptyBody": "Cuando tu equipo esté inscrito en un torneo que esté activo en la zona horaria de tu perfil, las posiciones del equipo aparecerán aquí. Misma ventana activa que en la pestaña de Retos.",
+    "noTeams": "Aún no hay equipos inscritos.",
+    "colRank": "#",
+    "colTeam": "Equipo",
+    "colPoints": "Puntos"
+  },
+  "family": {
+    "title": "Mi familia",
+    "comingSoon": "¡Funciones de familia muy pronto!"
+  },
+  "profile": {
+    "title": "Perfil",
+    "timezone": "Zona horaria: {{tz}}",
+    "changePhoto": "Cambiar foto de perfil",
+    "refresh": "Actualizar perfil",
+    "signOut": "Cerrar sesión",
+    "permLibraryTitle": "Permiso necesario",
+    "permLibraryBody": "Se necesita acceso a la galería para elegir una foto.",
+    "permCameraTitle": "Permiso necesario",
+    "permCameraBody": "Se necesita acceso a la cámara para tomar una foto.",
+    "cameraWebTitle": "Cámara",
+    "cameraWebBody": "Tomar una foto no está disponible en el navegador. Usa un dispositivo con la app instalada.",
+    "photoSourceTitle": "Foto de perfil",
+    "photoSourceMessage": "¿Cómo quieres añadir una foto?",
+    "chooseLibrary": "Elegir de la galería",
+    "takePhoto": "Tomar foto",
+    "uploadTitle": "Subiendo foto de perfil",
+    "uploadSuccess": "Foto de perfil actualizada"
+  },
+  "crop": {
+    "hint": "Pellizca para hacer zoom dentro del cuadrado. Arrastra la foto para encuadrar.",
+    "readSizeError": "No se pudo leer el tamaño de la imagen.",
+    "uploadFailed": "Error al subir."
+  },
+  "feed": {
+    "now": "ahora",
+    "minutesShort": "{{count}} min",
+    "hoursShort": "{{count}} h",
+    "daysShort": "{{count}} d",
+    "pending": "Pendiente",
+    "textPost": "Solo texto",
+    "like": "Me gusta",
+    "unlike": "Quitar me gusta",
+    "likesCount": "{{count}} me gusta"
+  },
+  "uploadToast": {
+    "done": "Listo",
+    "failed": "Error al subir"
+  }
+}

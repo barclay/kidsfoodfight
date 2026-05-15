@@ -1,28 +1,16 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useLayoutEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { ChallengesStackParamList } from '../navigation/types';
+import { challengeTypeLabel } from '../lib/challengeTypeLabel';
 import { Colors } from '../lib/colors';
 
 type Props = NativeStackScreenProps<ChallengesStackParamList, 'ChallengeDetail'>;
 
-function typeLabel(t: string): string {
-  switch (t) {
-    case 'food':
-      return 'Food';
-    case 'fitness':
-      return 'Fitness';
-    case 'shopping':
-      return 'Shopping';
-    case 'game':
-      return 'Game';
-    default:
-      return t;
-  }
-}
-
 export default function ChallengeDetailScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const { challenge } = route.params;
 
   useLayoutEffect(() => {
@@ -37,15 +25,15 @@ export default function ChallengeDetailScreen({ navigation, route }: Props) {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.tournament}>{challenge.tournament_name}</Text>
         <View style={styles.metaRow}>
-          <Text style={styles.metaPill}>Day {challenge.day}</Text>
-          <Text style={styles.metaPill}>{typeLabel(challenge.challenge_type)}</Text>
-          <Text style={styles.points}>{challenge.points} pts</Text>
+          <Text style={styles.metaPill}>{t('common.day', { day: challenge.day })}</Text>
+          <Text style={styles.metaPill}>{challengeTypeLabel(t, challenge.challenge_type)}</Text>
+          <Text style={styles.points}>{t('common.points', { count: challenge.points })}</Text>
         </View>
         <Text style={styles.title}>{challenge.title}</Text>
         {challenge.description ? (
           <Text style={styles.description}>{challenge.description}</Text>
         ) : (
-          <Text style={styles.muted}>No extra instructions — show us what you did!</Text>
+          <Text style={styles.muted}>{t('challengeDetail.noInstructions')}</Text>
         )}
       </ScrollView>
       <View style={styles.footer}>
@@ -58,7 +46,7 @@ export default function ChallengeDetailScreen({ navigation, route }: Props) {
             })
           }
         >
-          <Text style={styles.ctaText}>{"Let's go!"}</Text>
+          <Text style={styles.ctaText}>{t('challengeDetail.letsGo')}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

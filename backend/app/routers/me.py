@@ -13,8 +13,10 @@ from starlette import status
 from app.auth import current_active_user
 from app.challenge_window import local_tournament_day_index, resolve_user_zone
 from app.config import settings
+from app.content_translations import pick_tournament_text, tournament_translations_map
 from app.database import get_db
-from app.models import Team, TeamTournament, User
+from app.http_locale import PreferredLocale
+from app.models import Team, TeamTournament, Tournament, User
 from app.profile_photo_process import sniff_is_probably_image, square_jpeg_from_upload
 from app.schemas import (
     MeActiveTournamentLeaderboard,
@@ -86,6 +88,7 @@ async def upload_profile_photo(
 @router.get('/me/tournament-leaderboards', response_model=MeTournamentLeaderboardsPayload)
 async def get_me_tournament_leaderboards(
     db: DbSession,
+    locale: PreferredLocale,
     user: User = Depends(current_active_user),
 ) -> MeTournamentLeaderboardsPayload:
     """
@@ -111,7 +114,7 @@ async def get_me_tournament_leaderboards(
     team = db_user.team
     assert team is not None
 
-    boards: list[MeActiveTournamentLeaderboard] = []
+    active_entries: list[TeamTournament] = []
     for entry in team.tournament_entries:
         tournament = entry.tournament
         if tournament is None:
@@ -124,7 +127,18 @@ async def get_me_tournament_leaderboards(
         )
         if active_day is None:
             continue
+        active_entries.append(entry)
 
+    tm = await tournament_translations_map(
+        db, tournament_ids=[e.tournament_id for e in active_entries if e.tournament_id]
+    )
+
+    boards: list[MeActiveTournamentLeaderboard] = []
+    for entry in active_entries:
+        tournament = entry.tournament
+        if tournament is None:
+            continue
+        tname, _ = pick_tournament_text(tm, tournament.id, locale)
         raw_rows = await fetch_tournament_leaderboard_rows(db, tournament_id=tournament.id)
         rows = [
             MeTournamentLeaderboardRow(
@@ -139,7 +153,7 @@ async def get_me_tournament_leaderboards(
         boards.append(
             MeActiveTournamentLeaderboard(
                 tournament_id=tournament.id,
-                tournament_name=tournament.name,
+                tournament_name=tname,
                 rows=rows,
             )
         )

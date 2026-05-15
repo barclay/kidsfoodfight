@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Image,
@@ -43,6 +44,7 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
 
 export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const { imageUri } = route.params;
   const { token, refreshMe } = useAuth();
   const { enqueueUpload } = useUploadToast();
@@ -87,9 +89,9 @@ export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
         setImgNatural({ w, h });
         didCenterRef.current = false;
       },
-      () => setError('Could not read image size.'),
+      () => setError(t('crop.readSizeError')),
     );
-  }, [imageUri]);
+  }, [imageUri, t]);
 
   useEffect(() => {
     if (!imgNatural || side <= 0 || didCenterRef.current) {
@@ -255,8 +257,8 @@ export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
       );
       const croppedUri = manipulated.uri;
       enqueueUpload({
-        title: 'Uploading profile photo',
-        successMessage: 'Profile photo updated',
+        title: t('profile.uploadTitle'),
+        successMessage: t('profile.uploadSuccess'),
         run: async (onProgress) => {
           await uploadProfilePhoto(token, croppedUri, onProgress);
           await refreshMe();
@@ -264,7 +266,7 @@ export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
       });
       navigation.goBack();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed.');
+      setError(e instanceof Error ? e.message : t('crop.uploadFailed'));
     } finally {
       setSaving(false);
     }
@@ -315,18 +317,18 @@ export default function ProfilePhotoCropScreen({ navigation, route }: Props) {
         </View>
 
         <View style={styles.toolbar} pointerEvents="box-none">
-          <Text style={styles.hint}>Pinch to zoom inside the square. Drag the photo to frame your shot.</Text>
+          <Text style={styles.hint}>{t('crop.hint')}</Text>
           <Text style={styles.zoomHint}>{Math.round(zoom * 100)}%</Text>
           <View style={styles.actions}>
             <Pressable style={styles.cancel} onPress={() => navigation.goBack()} disabled={saving}>
-              <Text style={styles.cancelText}>Cancel</Text>
+              <Text style={styles.cancelText}>{t('common.cancel')}</Text>
             </Pressable>
             <Pressable
               style={[styles.save, saving && styles.saveDisabled]}
               onPress={() => void onSave()}
               disabled={saving || !imgNatural}
             >
-              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save</Text>}
+              {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>{t('common.save')}</Text>}
             </Pressable>
           </View>
         </View>

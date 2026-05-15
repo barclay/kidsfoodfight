@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Platform,
@@ -19,6 +20,7 @@ import type {
 } from '../types/tournamentLeaderboard';
 
 export default function LeaderboardScreen() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [data, setData] = useState<MeTournamentLeaderboardsPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,12 +36,12 @@ export default function LeaderboardScreen() {
       const payload = await fetchMeTournamentLeaderboards(token);
       setData(payload);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load leaderboard.');
+      setError(e instanceof Error ? e.message : t('leaderboard.errorLoad'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     if (!token) {
@@ -63,15 +65,15 @@ export default function LeaderboardScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Leaderboard</Text>
-        <Text style={styles.subtitle}>Active tournaments your team is enrolled in</Text>
+        <Text style={styles.title}>{t('leaderboard.title')}</Text>
+        <Text style={styles.subtitle}>{t('leaderboard.subtitle')}</Text>
       </View>
 
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
           <Text style={styles.errorRetry} onPress={() => void load()}>
-            Tap to retry
+            {t('common.retry')}
           </Text>
         </View>
       ) : null}
@@ -94,11 +96,8 @@ export default function LeaderboardScreen() {
         >
           {boards.length === 0 ? (
             <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No active tournament leaderboard</Text>
-              <Text style={styles.emptyBody}>
-                When your team is enrolled in a tournament that is running on your profile time zone, team
-                rankings appear here. Same active window as the Challenges tab.
-              </Text>
+              <Text style={styles.emptyTitle}>{t('leaderboard.emptyTitle')}</Text>
+              <Text style={styles.emptyBody}>{t('leaderboard.emptyBody')}</Text>
             </View>
           ) : (
             boards.map((board) => (
@@ -118,19 +117,20 @@ function TournamentBoard({
   board: MeActiveTournamentLeaderboard;
   myTeamId: string | null;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.board}>
       <Text style={styles.boardTitle} numberOfLines={2}>
         {board.tournament_name}
       </Text>
       {board.rows.length === 0 ? (
-        <Text style={styles.muted}>No teams enrolled yet.</Text>
+        <Text style={styles.muted}>{t('leaderboard.noTeams')}</Text>
       ) : (
         <View style={styles.table}>
           <View style={[styles.row, styles.headerRow]}>
-            <Text style={[styles.cell, styles.cellRank, styles.headerCell]}>#</Text>
-            <Text style={[styles.cell, styles.cellTeam, styles.headerCell]}>Team</Text>
-            <Text style={[styles.cell, styles.cellNum, styles.headerCell]}>Points</Text>
+            <Text style={[styles.cell, styles.cellRank, styles.headerCell]}>{t('leaderboard.colRank')}</Text>
+            <Text style={[styles.cell, styles.cellTeam, styles.headerCell]}>{t('leaderboard.colTeam')}</Text>
+            <Text style={[styles.cell, styles.cellNum, styles.headerCell]}>{t('leaderboard.colPoints')}</Text>
           </View>
           {board.rows.map((row) => (
             <LeaderboardRow key={row.team_id} row={row} highlight={myTeamId !== null && row.team_id === myTeamId} />

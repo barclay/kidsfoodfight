@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import { useLayoutEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   Image,
@@ -24,6 +25,7 @@ const MAX_PHOTOS = MAX_FEED_POST_PHOTOS;
 type Props = NativeStackScreenProps<ChallengesStackParamList, 'ChallengePost'>;
 
 export default function ChallengePostScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const { challengeId, challengeTitle } = route.params;
   const { token } = useAuth();
   const { enqueueUpload } = useUploadToast();
@@ -42,7 +44,7 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
     setError(null);
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      setError('Photo library access is needed to add images.');
+      setError(t('challengePost.errorLibrary'));
       return;
     }
     const remaining = MAX_PHOTOS - uris.length;
@@ -64,13 +66,13 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
 
   const takePhoto = async () => {
     if (Platform.OS === 'web') {
-      Alert.alert('Camera', 'Use a device with the Expo app to take a photo, or choose from the library on web.');
+      Alert.alert(t('challengePost.cameraWebTitle'), t('challengePost.cameraWebBody'));
       return;
     }
     setError(null);
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      setError('Camera access is needed to take a photo.');
+      setError(t('challengePost.errorCamera'));
       return;
     }
     if (uris.length >= MAX_PHOTOS) {
@@ -99,7 +101,7 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
     }
     const trimmed = comment.trim();
     if (!trimmed) {
-      setError('Add a short note for a text-only post, or add photos to continue to stickers.');
+      setError(t('challengePost.errorCaptionOrPhotos'));
       return;
     }
     const snapshot = {
@@ -108,8 +110,8 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
       fileUris: [] as string[],
     };
     enqueueUpload({
-      title: 'Posting your challenge',
-      successMessage: 'Submission sent',
+      title: t('challengePost.uploadTitle'),
+      successMessage: t('challengePost.uploadSuccess'),
       run: (onProgress) => createFeedPost(token, snapshot, onProgress),
     });
     setComment('');
@@ -140,8 +142,7 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>
-          Add up to {MAX_PHOTOS} photos and/or a caption. When you add photos, you will place optional face
-          stickers on the next screen before submitting. Caption-only posts skip that step.
+          {t('challengePost.hint', { max: MAX_PHOTOS })}
         </Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -152,18 +153,18 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
             onPress={() => void pickFromLibrary()}
             disabled={uris.length >= MAX_PHOTOS}
           >
-            <Text style={styles.secondaryBtnText}>Choose photos</Text>
+            <Text style={styles.secondaryBtnText}>{t('challengePost.choosePhotos')}</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.secondaryBtn, pressed && styles.pressed]}
             onPress={() => void takePhoto()}
             disabled={uris.length >= MAX_PHOTOS}
           >
-            <Text style={styles.secondaryBtnText}>Take photo</Text>
+            <Text style={styles.secondaryBtnText}>{t('challengePost.takePhoto')}</Text>
           </Pressable>
         </View>
         <Text style={styles.photoCount}>
-          {uris.length}/{MAX_PHOTOS} photos
+          {t('challengePost.photoCount', { current: uris.length, max: MAX_PHOTOS })}
         </Text>
 
         <ScrollView
@@ -182,12 +183,12 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
           ))}
         </ScrollView>
 
-        <Text style={styles.label}>Caption (optional)</Text>
+        <Text style={styles.label}>{t('challengePost.captionLabel')}</Text>
         <TextInput
           style={styles.input}
           value={comment}
           onChangeText={setComment}
-          placeholder="Tell us what you did…"
+          placeholder={t('challengePost.captionPlaceholder')}
           placeholderTextColor={Colors.textMuted}
           multiline
           editable
@@ -200,7 +201,7 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
             style={({ pressed }) => [styles.submit, pressed && styles.submitPressed]}
             onPress={goStickerEditor}
           >
-            <Text style={styles.submitText}>Continue — stickers</Text>
+            <Text style={styles.submitText}>{t('challengePost.continueStickers')}</Text>
           </Pressable>
         ) : (
           <Pressable
@@ -212,7 +213,7 @@ export default function ChallengePostScreen({ navigation, route }: Props) {
             onPress={submit}
             disabled={!canSubmitTextOnly}
           >
-            <Text style={styles.submitText}>Submit caption only</Text>
+            <Text style={styles.submitText}>{t('challengePost.submitCaptionOnly')}</Text>
           </Pressable>
         )}
       </View>

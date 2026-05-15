@@ -210,6 +210,11 @@ conda activate kff-backend
 conda env update -f backend/environment.yml --prune
 ```
 
+> **Two dependency files — keep both in sync.**
+> `backend/environment.yml` is used by **conda** (local dev / IDE).
+> `backend/requirements.txt` is used by the **Docker image** (`Dockerfile` runs `pip install -r requirements.txt`).
+> When you add a new Python package, add it to **both files** — omitting `requirements.txt` will silently break the containerised stack.
+
 ### Mobile App
 
 Start the Expo dev server from the repo root (or run the same file from `app/`):

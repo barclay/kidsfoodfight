@@ -1,7 +1,9 @@
+import './src/i18n/config';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
+import { LanguageProvider } from './src/context/LanguageContext';
 import { UploadToastProvider } from './src/context/UploadToastContext';
 import Navigation from './src/navigation';
 
@@ -10,9 +12,11 @@ export default function App() {
     <View style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AuthProvider>
-          <UploadToastProvider>
-            <Navigation />
-          </UploadToastProvider>
+          <LanguageProvider>
+            <UploadToastProvider>
+              <Navigation />
+            </UploadToastProvider>
+          </LanguageProvider>
         </AuthProvider>
         <StatusBar style="auto" />
       </SafeAreaProvider>

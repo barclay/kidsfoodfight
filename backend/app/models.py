@@ -38,9 +38,19 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
 
     `timezone` is an IANA name (e.g. America/Los_Angeles) for displaying local times;
     default is US Pacific. Mobile clients should send the device zone at signup.
+
+    ``language_preference`` mirrors the mobile language setting (``system`` follows device locale,
+    ``en`` / ``es`` forces UI copy). ``NULL`` means the user has never synced from a client.
     """
 
     __tablename__ = 'users'
+
+    __table_args__ = (
+        CheckConstraint(
+            "language_preference IS NULL OR language_preference IN ('system', 'en', 'es')",
+            name='ck_users_language_preference',
+        ),
+    )
 
     display_name: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     timezone: Mapped[str] = mapped_column(
@@ -64,6 +74,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     #: Optional avatar: local ``data/uploads/users/{user_id}/...`` key when ``STORAGE_BACKEND=local``;
     #: production will use the same string shape as an S3 object key (TBD).
     profile_photo_storage_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    language_preference: Mapped[str | None] = mapped_column(String(8), nullable=True)
 
     team: Mapped['Team | None'] = relationship(back_populates='users')
     posts: Mapped[list['Post']] = relationship(back_populates='author', cascade='all, delete-orphan')
@@ -96,6 +107,8 @@ class Tournament(Base):
     Time-bounded competition (formerly "events" in the prototype).
     Teams enroll; users on those teams participate through the team link.
 
+    Localized ``name`` / ``description`` live in ``TournamentTranslation`` rows (locales ``en``, ``es``).
+
     ``end_date`` is derived: last moment of an *inclusive* ``length_days``-day
     window — same time-of-day as ``start_date``, ``length_days - 1`` calendar
     days later (e.g. 7 days → ``start_date`` through ``start_date + 6 days``).
@@ -107,8 +120,6 @@ class Tournament(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(String(256), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     length_days: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -129,11 +140,35 @@ class Tournament(Base):
         passive_deletes=True,
         order_by='Challenge.day',
     )
+    translations: Mapped[list['TournamentTranslation']] = relationship(
+        back_populates='tournament',
+        cascade='all, delete-orphan',
+    )
+
+
+class TournamentTranslation(Base):
+    """Localized tournament title and description (``en`` / ``es``)."""
+
+    __tablename__ = 'tournament_translations'
+    __table_args__ = (CheckConstraint("locale IN ('en', 'es')", name='ck_tournament_translations_locale'),)
+
+    tournament_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('tournaments.id', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    locale: Mapped[str] = mapped_column(String(8), primary_key=True)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    tournament: Mapped['Tournament'] = relationship(back_populates='translations')
 
 
 class Challenge(Base):
     """
     A task within a tournament (prototype ``event_challenges`` / global challenges).
+
+    Localized ``title`` / ``description`` live in ``ChallengeTranslation`` rows (locales ``en``, ``es``).
 
     ``tournament_id`` may be NULL after the parent tournament is deleted; challenges, posts,
     and likes are retained. ``day`` is still 1-based relative to the tournament when linked.
@@ -155,8 +190,6 @@ class Challenge(Base):
         nullable=True,
         index=True,
     )
-    title: Mapped[str] = mapped_column(String(256), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     challenge_type: Mapped[ChallengeType] = mapped_column(
         SAEnum(ChallengeType, values_callable=lambda x: [e.value for e in x], native_enum=False, length=32),
         nullable=False,
@@ -170,6 +203,10 @@ class Challenge(Base):
     tournament: Mapped['Tournament | None'] = relationship(back_populates='challenges')
 
     posts: Mapped[list['Post']] = relationship(back_populates='challenge', cascade='all, delete-orphan')
+    translations: Mapped[list['ChallengeTranslation']] = relationship(
+        back_populates='challenge',
+        cascade='all, delete-orphan',
+    )
 
     @property
     def start_date(self) -> datetime | None:
@@ -184,6 +221,24 @@ class Challenge(Base):
         if self.tournament is None:
             return None
         return self.tournament.start_date + timedelta(days=self.day) - timedelta.resolution
+
+
+class ChallengeTranslation(Base):
+    """Localized challenge title and description (``en`` / ``es``)."""
+
+    __tablename__ = 'challenge_translations'
+    __table_args__ = (CheckConstraint("locale IN ('en', 'es')", name='ck_challenge_translations_locale'),)
+
+    challenge_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey('challenges.id', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    locale: Mapped[str] = mapped_column(String(8), primary_key=True)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    challenge: Mapped['Challenge'] = relationship(back_populates='translations')
 
 
 class TeamTournament(Base):

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Self
+from typing import Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi_users import schemas
@@ -8,6 +8,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.invite_code import INVITE_CODE_LENGTH, is_valid_invite_code_format, normalize_invite_code_input
 from app.models import DEFAULT_USER_TIMEZONE
+
+LanguagePreference = Literal['system', 'en', 'es']
 
 
 def _validate_iana_timezone(value: str) -> str:
@@ -26,6 +28,7 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
     created_at: datetime
     last_seen_at: datetime | None = None
     profile_photo_storage_url: str | None = None
+    language_preference: LanguagePreference | None = None
 
     model_config = {'from_attributes': True}
 
@@ -45,6 +48,19 @@ class UserCreate(schemas.BaseUserCreate):
         default=None,
         description='Optional team invite code; when set, the user joins that team.',
     )
+    language_preference: LanguagePreference | None = Field(
+        default=None,
+        description='App UI language; omit or null to leave unset until the client syncs.',
+    )
+
+    @field_validator('language_preference')
+    @classmethod
+    def language_preference_valid(cls, v: LanguagePreference | None) -> LanguagePreference | None:
+        if v is None:
+            return v
+        if v not in ('system', 'en', 'es'):
+            raise ValueError('language_preference must be system, en, or es')
+        return v
 
     @field_validator('timezone', mode='before')
     @classmethod
@@ -88,6 +104,16 @@ class UserCreate(schemas.BaseUserCreate):
 class UserUpdate(schemas.BaseUserUpdate):
     display_name: str | None = None
     timezone: str | None = None
+    language_preference: LanguagePreference | None = None
+
+    @field_validator('language_preference')
+    @classmethod
+    def language_preference_valid_update(cls, v: LanguagePreference | None) -> LanguagePreference | None:
+        if v is None:
+            return v
+        if v not in ('system', 'en', 'es'):
+            raise ValueError('language_preference must be system, en, or es')
+        return v
 
     @field_validator('timezone')
     @classmethod

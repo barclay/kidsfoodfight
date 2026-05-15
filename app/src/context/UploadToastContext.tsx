@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../lib/colors';
 
@@ -66,38 +67,42 @@ function UploadToastOverlay({ state }: { state: ToastState }) {
 }
 
 export function UploadToastProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const [state, setState] = useState<ToastState>({ mode: 'hidden' });
   const queueRef = useRef<UploadToastTask[]>([]);
   const pumpingRef = useRef(false);
 
-  const runTask = useCallback(async (task: UploadToastTask) => {
-    setState({ mode: 'progress', title: task.title, progress: 0, indeterminate: true });
-    try {
-      await task.run((fraction) => {
-        setState((prev) => {
-          if (prev.mode !== 'progress') {
-            return prev;
-          }
-          if (fraction < 0) {
-            return { ...prev, indeterminate: true };
-          }
-          return {
-            mode: 'progress',
-            title: prev.title,
-            progress: Math.min(1, Math.max(0, fraction)),
-            indeterminate: false,
-          };
+  const runTask = useCallback(
+    async (task: UploadToastTask) => {
+      setState({ mode: 'progress', title: task.title, progress: 0, indeterminate: true });
+      try {
+        await task.run((fraction) => {
+          setState((prev) => {
+            if (prev.mode !== 'progress') {
+              return prev;
+            }
+            if (fraction < 0) {
+              return { ...prev, indeterminate: true };
+            }
+            return {
+              mode: 'progress',
+              title: prev.title,
+              progress: Math.min(1, Math.max(0, fraction)),
+              indeterminate: false,
+            };
+          });
         });
-      });
-      setState({ mode: 'success', message: task.successMessage ?? 'Done' });
-      await new Promise<void>((r) => setTimeout(r, 1600));
-    } catch (e) {
-      const message = e instanceof Error ? e.message : 'Upload failed';
-      setState({ mode: 'error', message });
-      await new Promise<void>((r) => setTimeout(r, 3800));
-    }
-    setState({ mode: 'hidden' });
-  }, []);
+        setState({ mode: 'success', message: task.successMessage ?? t('uploadToast.done') });
+        await new Promise<void>((r) => setTimeout(r, 1600));
+      } catch (e) {
+        const message = e instanceof Error ? e.message : t('uploadToast.failed');
+        setState({ mode: 'error', message });
+        await new Promise<void>((r) => setTimeout(r, 3800));
+      }
+      setState({ mode: 'hidden' });
+    },
+    [t],
+  );
 
   const pump = useCallback(async () => {
     if (pumpingRef.current) {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   FlatList,
@@ -15,6 +16,7 @@ import { Colors } from '../lib/colors';
 import type { FeedPostItem } from '../types/feed';
 
 export default function HomeScreen() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const [posts, setPosts] = useState<FeedPostItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -66,11 +68,11 @@ export default function HomeScreen() {
     try {
       await loadPage(0, 'replace');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load feed.');
+      setError(e instanceof Error ? e.message : t('home.errorLoad'));
     } finally {
       setInitialLoading(false);
     }
-  }, [token, loadPage]);
+  }, [token, loadPage, t]);
 
   useEffect(() => {
     void bootstrap();
@@ -85,11 +87,11 @@ export default function HomeScreen() {
     try {
       await loadPage(0, 'replace');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load feed.');
+      setError(e instanceof Error ? e.message : t('home.errorLoad'));
     } finally {
       setRefreshing(false);
     }
-  }, [token, loadPage]);
+  }, [token, loadPage, t]);
 
   const onEndReached = useCallback(async () => {
     if (!token || !hasMore || loadingMore || initialLoading || refreshing) {
@@ -100,11 +102,11 @@ export default function HomeScreen() {
     try {
       await loadPage(posts.length, 'append');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load more.');
+      setError(e instanceof Error ? e.message : t('home.errorMore'));
     } finally {
       setLoadingMore(false);
     }
-  }, [token, hasMore, loadingMore, initialLoading, refreshing, posts.length, loadPage]);
+  }, [token, hasMore, loadingMore, initialLoading, refreshing, posts.length, loadPage, t]);
 
   if (!token) {
     return null;
@@ -113,14 +115,14 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
-        <Text style={styles.topBarTitle}>Kids Food Fight</Text>
+        <Text style={styles.topBarTitle}>{t('brand.title')}</Text>
       </View>
 
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
           <Text style={styles.errorRetry} onPress={() => void bootstrap()}>
-            Tap to retry
+            {t('common.retry')}
           </Text>
         </View>
       ) : null}
@@ -148,8 +150,8 @@ export default function HomeScreen() {
           onEndReachedThreshold={0.35}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={styles.emptyTitle}>No posts yet</Text>
-              <Text style={styles.emptyBody}>Approved challenge posts will show up here.</Text>
+              <Text style={styles.emptyTitle}>{t('home.emptyTitle')}</Text>
+              <Text style={styles.emptyBody}>{t('home.emptyBody')}</Text>
             </View>
           }
           ListFooterComponent={

@@ -2,10 +2,11 @@
 
 import uuid
 from datetime import datetime
+from typing import Literal, Self
 
-from typing import Literal
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from app.schemas import LanguagePreference
 
 ChallengeTypeLiteral = Literal['food', 'fitness', 'shopping', 'game']
 
@@ -33,6 +34,7 @@ class AdminUserListItem(BaseModel):
     team_id: uuid.UUID | None
     team: AdminTeamSummary | None = None
     profile_photo_storage_url: str | None = None
+    language_preference: LanguagePreference | None = None
 
 
 class AdminUserDetail(AdminUserListItem):
@@ -43,6 +45,10 @@ class AdminUserPatch(BaseModel):
     email: EmailStr | None = None
     display_name: str | None = None
     timezone: str | None = None
+    language_preference: LanguagePreference | None = Field(
+        default=None,
+        description='App language: system, en, or es; omit to leave unchanged',
+    )
     password: str | None = None
     is_active: bool | None = None
     is_superuser: bool | None = None
@@ -165,6 +171,16 @@ class AdminPostsBulkDeleteResult(BaseModel):
     deleted: int
 
 
+class AdminTournamentLocalePayload(BaseModel):
+    name: str = Field(default='', max_length=256)
+    description: str | None = None
+
+
+class AdminTournamentLocaleOut(BaseModel):
+    name: str
+    description: str | None = None
+
+
 class AdminTournamentListItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -177,7 +193,7 @@ class AdminTournamentListItem(BaseModel):
 
 
 class AdminTournamentDetail(AdminTournamentListItem):
-    pass
+    translations: dict[str, AdminTournamentLocaleOut]
 
 
 class AdminTournamentLeaderboardRow(BaseModel):
@@ -192,10 +208,26 @@ class AdminTournamentLeaderboardRow(BaseModel):
 
 
 class AdminTournamentCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=256)
-    description: str | None = None
+    translations: dict[str, AdminTournamentLocalePayload]
     start_date: datetime
     length_days: int = Field(ge=1)
+
+    @model_validator(mode='after')
+    def tournament_english_name_required(self) -> Self:
+        en = self.translations.get('en')
+        if en is None or not (en.name or '').strip():
+            raise ValueError('translations[en].name is required')
+        return self
+
+    @field_validator('translations')
+    @classmethod
+    def tournament_translations_keys(cls, v: dict[str, AdminTournamentLocalePayload]) -> dict[str, AdminTournamentLocalePayload]:
+        if 'en' not in v:
+            raise ValueError('translations must include locale en')
+        for k in v:
+            if k not in ('en', 'es'):
+                raise ValueError(f'Unsupported locale in translations: {k}')
+        return v
 
     @field_validator('start_date')
     @classmethod
@@ -206,10 +238,21 @@ class AdminTournamentCreate(BaseModel):
 
 
 class AdminTournamentPatch(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=256)
-    description: str | None = None
+    translations: dict[str, AdminTournamentLocalePayload] | None = None
     start_date: datetime | None = None
     length_days: int | None = Field(default=None, ge=1)
+
+    @field_validator('translations')
+    @classmethod
+    def tournament_patch_translations_keys(
+        cls, v: dict[str, AdminTournamentLocalePayload] | None
+    ) -> dict[str, AdminTournamentLocalePayload] | None:
+        if v is None:
+            return v
+        for k in v:
+            if k not in ('en', 'es'):
+                raise ValueError(f'Unsupported locale in translations: {k}')
+        return v
 
     @field_validator('start_date')
     @classmethod
@@ -217,6 +260,16 @@ class AdminTournamentPatch(BaseModel):
         if v is not None and v.tzinfo is None:
             raise ValueError('start_date must be timezone-aware')
         return v
+
+
+class AdminChallengeLocalePayload(BaseModel):
+    title: str = Field(default='', max_length=256)
+    description: str | None = None
+
+
+class AdminChallengeLocaleOut(BaseModel):
+    title: str
+    description: str | None = None
 
 
 class AdminChallengeListItem(BaseModel):
@@ -232,22 +285,51 @@ class AdminChallengeListItem(BaseModel):
 
 
 class AdminChallengeDetail(AdminChallengeListItem):
-    pass
+    translations: dict[str, AdminChallengeLocaleOut]
+    #: Parent tournament copy per locale (for admin preview); empty when ``tournament_id`` is null.
+    tournament_translations: dict[str, AdminTournamentLocaleOut] = Field(default_factory=dict)
 
 
 class AdminChallengeCreate(BaseModel):
     tournament_id: uuid.UUID
-    title: str = Field(min_length=1, max_length=256)
-    description: str | None = None
     challenge_type: ChallengeTypeLiteral
     points: int = Field(ge=0)
     day: int = Field(ge=1)
+    translations: dict[str, AdminChallengeLocalePayload]
+
+    @model_validator(mode='after')
+    def challenge_english_title_required(self) -> Self:
+        en = self.translations.get('en')
+        if en is None or not (en.title or '').strip():
+            raise ValueError('translations[en].title is required')
+        return self
+
+    @field_validator('translations')
+    @classmethod
+    def challenge_translations_keys(cls, v: dict[str, AdminChallengeLocalePayload]) -> dict[str, AdminChallengeLocalePayload]:
+        if 'en' not in v:
+            raise ValueError('translations must include locale en')
+        for k in v:
+            if k not in ('en', 'es'):
+                raise ValueError(f'Unsupported locale in translations: {k}')
+        return v
 
 
 class AdminChallengePatch(BaseModel):
     tournament_id: uuid.UUID | None = None
-    title: str | None = Field(default=None, min_length=1, max_length=256)
-    description: str | None = None
     challenge_type: ChallengeTypeLiteral | None = None
     points: int | None = Field(default=None, ge=0)
     day: int | None = Field(default=None, ge=1)
+    translations: dict[str, AdminChallengeLocalePayload] | None = None
+
+    @field_validator('translations')
+    @classmethod
+    def challenge_patch_translations_keys(
+        cls, v: dict[str, AdminChallengeLocalePayload] | None
+    ) -> dict[str, AdminChallengeLocalePayload] | None:
+        if v is None:
+            return v
+        for k in v:
+            if k not in ('en', 'es'):
+                raise ValueError(f'Unsupported locale in translations: {k}')
+        return v

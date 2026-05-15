@@ -41,6 +41,9 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
+  if (!headers.has('Accept-Language') && typeof navigator !== 'undefined' && navigator.language) {
+    headers.set('Accept-Language', navigator.language);
+  }
   if (!headers.has('Content-Type') && init.body && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }

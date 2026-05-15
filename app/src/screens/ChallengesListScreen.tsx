@@ -1,6 +1,7 @@
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCallback, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -16,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import type { ChallengesStackParamList } from '../navigation/types';
 import { fetchAvailableChallenges, fetchJoinableTournaments, joinTournament } from '../lib/challengesApi';
+import { challengeTypeLabel } from '../lib/challengeTypeLabel';
 import { Colors } from '../lib/colors';
 import type { AvailableChallenge } from '../types/challenges';
 import type { JoinableTournament } from '../types/joinableTournament';
@@ -43,22 +45,8 @@ function buildSections(items: AvailableChallenge[]): Section[] {
   });
 }
 
-function typeLabel(t: string): string {
-  switch (t) {
-    case 'food':
-      return 'Food';
-    case 'fitness':
-      return 'Fitness';
-    case 'shopping':
-      return 'Shopping';
-    case 'game':
-      return 'Game';
-    default:
-      return t;
-  }
-}
-
 function ChallengeRow({ item, onPress }: { item: AvailableChallenge; onPress: () => void }) {
+  const { t } = useTranslation();
   return (
     <Pressable
       onPress={onPress}
@@ -66,10 +54,10 @@ function ChallengeRow({ item, onPress }: { item: AvailableChallenge; onPress: ()
     >
       <View style={styles.rowTop}>
         <View style={styles.rowTopLeft}>
-          <Text style={styles.dayPill}>Day {item.day}</Text>
-          <Text style={styles.typePill}>{typeLabel(item.challenge_type)}</Text>
+          <Text style={styles.dayPill}>{t('common.day', { day: item.day })}</Text>
+          <Text style={styles.typePill}>{challengeTypeLabel(t, item.challenge_type)}</Text>
         </View>
-        <Text style={styles.points}>{item.points} pts</Text>
+        <Text style={styles.points}>{t('common.points', { count: item.points })}</Text>
       </View>
       <Text style={styles.challengeTitle}>{item.title}</Text>
     </Pressable>
@@ -77,6 +65,7 @@ function ChallengeRow({ item, onPress }: { item: AvailableChallenge; onPress: ()
 }
 
 export default function ChallengesListScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
   const { token } = useAuth();
   const [items, setItems] = useState<AvailableChallenge[]>([]);
@@ -113,7 +102,7 @@ export default function ChallengesListScreen() {
           await load();
         } catch (e) {
           if (active) {
-            setError(e instanceof Error ? e.message : 'Could not load challenges.');
+            setError(e instanceof Error ? e.message : t('challenges.errorLoad'));
           }
         } finally {
           if (active) {
@@ -124,7 +113,7 @@ export default function ChallengesListScreen() {
       return () => {
         active = false;
       };
-    }, [token, load]),
+    }, [token, load, t]),
   );
 
   const onRefresh = useCallback(async () => {
@@ -136,11 +125,11 @@ export default function ChallengesListScreen() {
     try {
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load challenges.');
+      setError(e instanceof Error ? e.message : t('challenges.errorLoad'));
     } finally {
       setRefreshing(false);
     }
-  }, [token, load]);
+  }, [token, load, t]);
 
   const onJoinTournament = useCallback(
     async (tournament: JoinableTournament) => {
@@ -153,13 +142,13 @@ export default function ChallengesListScreen() {
         await joinTournament(token, tournament.tournament_id);
         await load();
       } catch (e) {
-        const message = e instanceof Error ? e.message : 'Could not join tournament.';
-        Alert.alert('Could not join', message);
+        const message = e instanceof Error ? e.message : t('challenges.joinFailedBody');
+        Alert.alert(t('challenges.joinFailedTitle'), message);
       } finally {
         setJoiningTournamentId(null);
       }
     },
-    [token, joiningTournamentId, load],
+    [token, joiningTournamentId, load, t],
   );
 
   if (!token) {
@@ -169,14 +158,14 @@ export default function ChallengesListScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Challenges</Text>
+        <Text style={styles.title}>{t('challenges.title')}</Text>
       </View>
 
       {error ? (
         <View style={styles.errorBanner}>
           <Text style={styles.errorText}>{error}</Text>
           <Text style={styles.errorRetry} onPress={() => void onRefresh()}>
-            Tap to retry
+            {t('common.retry')}
           </Text>
         </View>
       ) : null}
@@ -206,19 +195,19 @@ export default function ChallengesListScreen() {
             <View style={styles.empty}>
               {joinableTournaments.length > 0 ? (
                 <>
-                  <Text style={styles.emptyTitle}>A tournament is running</Text>
-                  <Text style={styles.emptyBody}>
-                    Your team can join an active event below to unlock challenges. Completed challenges
-                    disappear from this list. Days follow your profile time zone.
-                  </Text>
+                  <Text style={styles.emptyTitle}>{t('challenges.emptyRunningTitle')}</Text>
+                  <Text style={styles.emptyBody}>{t('challenges.emptyRunningBody')}</Text>
                   <View style={styles.joinableList}>
-                    {joinableTournaments.map((t) => {
-                      const busy = joiningTournamentId === t.tournament_id;
+                    {joinableTournaments.map((tournament) => {
+                      const busy = joiningTournamentId === tournament.tournament_id;
                       return (
-                        <View key={t.tournament_id} style={styles.joinableCard}>
-                          <Text style={styles.joinableName}>{t.tournament_name}</Text>
+                        <View key={tournament.tournament_id} style={styles.joinableCard}>
+                          <Text style={styles.joinableName}>{tournament.tournament_name}</Text>
                           <Text style={styles.joinableMeta}>
-                            Day {t.current_local_day} of {t.length_days}
+                            {t('challenges.dayOfTotal', {
+                              current: tournament.current_local_day,
+                              total: tournament.length_days,
+                            })}
                           </Text>
                           <Pressable
                             style={({ pressed }) => [
@@ -227,12 +216,12 @@ export default function ChallengesListScreen() {
                               pressed && styles.joinCtaPressed,
                             ]}
                             disabled={busy || joiningTournamentId !== null}
-                            onPress={() => void onJoinTournament(t)}
+                            onPress={() => void onJoinTournament(tournament)}
                           >
                             {busy ? (
                               <ActivityIndicator color="#fff" />
                             ) : (
-                              <Text style={styles.joinCtaText}>Join tournament</Text>
+                              <Text style={styles.joinCtaText}>{t('challenges.joinTournament')}</Text>
                             )}
                           </Pressable>
                         </View>
@@ -242,11 +231,8 @@ export default function ChallengesListScreen() {
                 </>
               ) : (
                 <>
-                  <Text style={styles.emptyTitle}>No challenges right now</Text>
-                  <Text style={styles.emptyBody}>
-                    Join a team enrolled in an active tournament to see challenges here. Completed challenges
-                    disappear from this list. Days follow your profile time zone.
-                  </Text>
+                  <Text style={styles.emptyTitle}>{t('challenges.emptyIdleTitle')}</Text>
+                  <Text style={styles.emptyBody}>{t('challenges.emptyIdleBody')}</Text>
                 </>
               )}
             </View>

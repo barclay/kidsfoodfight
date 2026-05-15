@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -18,6 +19,7 @@ import { Colors } from '../lib/colors';
 import type { RootStackParamList } from '../navigation/types';
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList, 'Login'>>();
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -28,14 +30,14 @@ export default function LoginScreen() {
   async function onSubmit() {
     setError(null);
     if (!email.trim() || !password) {
-      setError('Enter your email and password.');
+      setError(t('login.errorMissing'));
       return;
     }
     setSubmitting(true);
     try {
       await signIn(email, password);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign in failed.');
+      setError(e instanceof Error ? e.message : t('login.errorFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -53,17 +55,17 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.headerBlock}>
-            <Text style={styles.wordmark}>Kids Food Fight</Text>
-            <Text style={styles.tagline}>Sign in to continue</Text>
+            <Text style={styles.wordmark}>{t('brand.title')}</Text>
+            <Text style={styles.tagline}>{t('login.tagline')}</Text>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>{t('login.email')}</Text>
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="you@family.com"
+              placeholder={t('login.emailPlaceholder')}
               placeholderTextColor={Colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
@@ -73,12 +75,12 @@ export default function LoginScreen() {
               editable={!submitting}
             />
 
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t('login.password')}</Text>
             <TextInput
               style={styles.input}
               value={password}
               onChangeText={setPassword}
-              placeholder="Password"
+              placeholder={t('login.passwordPlaceholder')}
               placeholderTextColor={Colors.textMuted}
               secureTextEntry
               textContentType="password"
@@ -100,7 +102,7 @@ export default function LoginScreen() {
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryButtonText}>Sign in</Text>
+                <Text style={styles.primaryButtonText}>{t('login.signIn')}</Text>
               )}
             </Pressable>
 
@@ -109,7 +111,7 @@ export default function LoginScreen() {
               onPress={() => navigation.navigate('Signup')}
               disabled={submitting}
             >
-              <Text style={styles.linkText}>Create an account</Text>
+              <Text style={styles.linkText}>{t('login.createAccount')}</Text>
             </Pressable>
           </View>
         </ScrollView>

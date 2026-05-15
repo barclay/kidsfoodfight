@@ -7,6 +7,8 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.content_translations import pick_tournament_text, tournament_translations_map
+from app.http_locale import PreferredLocale
 from app.models import Team, TeamTournament, Tournament, User
 from app.obscene_language import ensure_text_is_clean
 from app.schemas_admin import (
@@ -26,18 +28,28 @@ from .deps import DbSession, SuperUser
 router = APIRouter(tags=['admin'])
 
 
-def _team_to_detail(team: Team, tournament_points: dict[uuid.UUID, int] | None = None) -> AdminTeamDetail:
-    totals = tournament_points or {}
+async def _admin_team_detail(
+    db: AsyncSession, team_id: uuid.UUID, locale: PreferredLocale
+) -> AdminTeamDetail:
+    result = await db.execute(_team_detail_stmt(team_id))
+    team = result.unique().scalar_one_or_none()
+    if team is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Team not found')
+    entry_ids = [e.id for e in (team.tournament_entries or [])]
+    totals = await tournament_entry_points_map(db, team_tournament_ids=entry_ids)
+    tids = [e.tournament_id for e in (team.tournament_entries or []) if e.tournament_id]
+    tm = await tournament_translations_map(db, tournament_ids=tids)
     users = team.users or []
     entries = team.tournament_entries or []
     tournaments: list[AdminTeamTournamentEntry] = []
     for e in entries:
         tr = e.tournament
+        tname = pick_tournament_text(tm, e.tournament_id, locale)[0] if tr is not None else ''
         tournaments.append(
             AdminTeamTournamentEntry(
                 id=e.id,
                 tournament_id=e.tournament_id,
-                tournament_name=tr.name if tr is not None else '',
+                tournament_name=tname,
                 joined_at=e.joined_at,
                 total_points=int(totals.get(e.id, 0)),
             )
@@ -61,16 +73,6 @@ def _team_detail_stmt(team_id: uuid.UUID):
         )
         .where(Team.id == team_id)
     )
-
-
-async def _admin_team_detail(db: AsyncSession, team_id: uuid.UUID) -> AdminTeamDetail:
-    result = await db.execute(_team_detail_stmt(team_id))
-    team = result.unique().scalar_one_or_none()
-    if team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Team not found')
-    entry_ids = [e.id for e in (team.tournament_entries or [])]
-    totals = await tournament_entry_points_map(db, team_tournament_ids=entry_ids)
-    return _team_to_detail(team, tournament_points=totals)
 
 
 @router.get('/teams', response_model=list[AdminTeamListItem])
@@ -102,17 +104,21 @@ async def admin_list_teams(
 
 
 @router.post('/teams', response_model=AdminTeamDetail, status_code=status.HTTP_201_CREATED)
-async def admin_create_team(db: DbSession, _: SuperUser, body: AdminTeamCreate) -> AdminTeamDetail:
+async def admin_create_team(
+    db: DbSession, _: SuperUser, body: AdminTeamCreate, locale: PreferredLocale
+) -> AdminTeamDetail:
     ensure_text_is_clean(body.name)
     team = Team(name=body.name)
     db.add(team)
     await db.flush()
-    return await _admin_team_detail(db, team.id)
+    return await _admin_team_detail(db, team.id, locale)
 
 
 @router.get('/teams/{team_id}', response_model=AdminTeamDetail)
-async def admin_get_team(db: DbSession, _: SuperUser, team_id: uuid.UUID) -> AdminTeamDetail:
-    return await _admin_team_detail(db, team_id)
+async def admin_get_team(
+    db: DbSession, _: SuperUser, team_id: uuid.UUID, locale: PreferredLocale
+) -> AdminTeamDetail:
+    return await _admin_team_detail(db, team_id, locale)
 
 
 @router.patch('/teams/{team_id}', response_model=AdminTeamDetail)
@@ -121,6 +127,7 @@ async def admin_patch_team(
     _: SuperUser,
     team_id: uuid.UUID,
     body: AdminTeamPatch,
+    locale: PreferredLocale,
 ) -> AdminTeamDetail:
     team = await db.get(Team, team_id)
     if team is None:
@@ -130,7 +137,7 @@ async def admin_patch_team(
         ensure_text_is_clean(data['name'])
         team.name = data['name']
     await db.flush()
-    return await _admin_team_detail(db, team_id)
+    return await _admin_team_detail(db, team_id, locale)
 
 
 @router.put('/teams/{team_id}/members', response_model=AdminTeamDetail)
@@ -139,6 +146,7 @@ async def admin_put_team_members(
     _: SuperUser,
     team_id: uuid.UUID,
     body: AdminTeamMembersPut,
+    locale: PreferredLocale,
 ) -> AdminTeamDetail:
     team = await db.get(Team, team_id)
     if team is None:
@@ -167,7 +175,7 @@ async def admin_put_team_members(
     await db.flush()
     for tid in affected_team_ids:
         await resync_team_all_enrolled_tournaments(db, team_id=tid)
-    return await _admin_team_detail(db, team_id)
+    return await _admin_team_detail(db, team_id, locale)
 
 
 @router.put('/teams/{team_id}/tournaments', response_model=AdminTeamDetail)
@@ -176,6 +184,7 @@ async def admin_put_team_tournaments(
     _: SuperUser,
     team_id: uuid.UUID,
     body: AdminTeamTournamentsPut,
+    locale: PreferredLocale,
 ) -> AdminTeamDetail:
     """Replace this team's tournament enrollments (``team_tournaments`` rows)."""
     team = await db.get(Team, team_id)
@@ -194,4 +203,4 @@ async def admin_put_team_tournaments(
         db.add(TeamTournament(team_id=team_id, tournament_id=tid))
     await db.flush()
     await resync_team_all_enrolled_tournaments(db, team_id=team_id)
-    return await _admin_team_detail(db, team_id)
+    return await _admin_team_detail(db, team_id, locale)

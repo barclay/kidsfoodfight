@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from . import challenges, posts, teams, tournaments, users
+from . import challenges, posts, teams, tournaments, translate, users
 
 router = APIRouter(prefix='/admin', tags=['admin'])
 router.include_router(teams.router)
@@ -10,3 +10,4 @@ router.include_router(users.router)
 router.include_router(posts.router)
 router.include_router(tournaments.router)
 router.include_router(challenges.router)
+router.include_router(translate.router)

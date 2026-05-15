@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { LocaleTabBar, type AppLocale } from '../components/LocaleTabBar';
 import { apiFetch } from '../api';
 
 const modalBackdrop: CSSProperties = {
@@ -31,6 +32,11 @@ function isoToLocalDatetimeValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+interface TournamentLocaleOut {
+  name: string;
+  description: string | null;
+}
+
 interface TournamentDetail {
   id: string;
   name: string;
@@ -38,6 +44,7 @@ interface TournamentDetail {
   start_date: string;
   length_days: number;
   created_at: string;
+  translations: Record<'en' | 'es', TournamentLocaleOut>;
 }
 
 interface LeaderboardRow {
@@ -57,6 +64,7 @@ export function TournamentViewPage() {
   const [error, setError] = useState<string | null>(null);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
   const [cloneOpen, setCloneOpen] = useState(false);
+  const [donorTranslations, setDonorTranslations] = useState<TournamentDetail['translations'] | null>(null);
   const [cloneName, setCloneName] = useState('');
   const [cloneDescription, setCloneDescription] = useState('');
   const [cloneStartLocal, setCloneStartLocal] = useState('');
@@ -65,6 +73,7 @@ export function TournamentViewPage() {
   const [cloneError, setCloneError] = useState<string | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [localeTab, setLocaleTab] = useState<AppLocale>('en');
 
   useEffect(() => {
     if (!tournamentId) return;
@@ -105,6 +114,7 @@ export function TournamentViewPage() {
 
   function openCloneModal() {
     if (!tournament) return;
+    setDonorTranslations(tournament.translations);
     setCloneName(tournament.name);
     setCloneDescription(tournament.description ?? '');
     setCloneStartLocal(isoToLocalDatetimeValue(tournament.start_date));
@@ -138,9 +148,20 @@ export function TournamentViewPage() {
     setCloneBusy(true);
     setCloneError(null);
     const startIso = new Date(cloneStartLocal).toISOString();
+    const en = {
+      name: cloneName.trim(),
+      description: cloneDescription.trim() ? cloneDescription.trim() : null,
+    };
+    const donorEs = donorTranslations?.es;
+    const es =
+      donorEs && donorEs.name.trim()
+        ? {
+            name: donorEs.name.trim(),
+            description: donorEs.description?.trim() ? donorEs.description.trim() : null,
+          }
+        : { name: en.name, description: en.description };
     const payload = {
-      name: cloneName,
-      description: cloneDescription.trim() ? cloneDescription : null,
+      translations: { en, es },
       start_date: startIso,
       length_days: cloneLengthDays,
     };
@@ -167,6 +188,14 @@ export function TournamentViewPage() {
     return end.toLocaleDateString();
   }, [tournament]);
 
+  const preview = useMemo(() => {
+    if (!tournament) return { name: '—', description: '—' };
+    const loc = tournament.translations[localeTab];
+    const name = (loc?.name ?? '').trim() || '—';
+    const description = (loc?.description ?? '').trim() ? String(loc?.description).trim() : '—';
+    return { name, description };
+  }, [tournament, localeTab]);
+
   if (error && !tournament) return <p style={{ color: '#b91c1c' }}>{error}</p>;
   if (!tournament) return <p>Loading…</p>;
 
@@ -175,8 +204,9 @@ export function TournamentViewPage() {
       <p>
         <Link to="/tournaments">← Tournaments</Link>
       </p>
+      <LocaleTabBar ariaLabel="Preview language" value={localeTab} onChange={setLocaleTab} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
-        <h1 style={{ margin: 0 }}>{tournament.name}</h1>
+        <h1 style={{ margin: 0 }}>{preview.name}</h1>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             type="button"
@@ -237,7 +267,7 @@ export function TournamentViewPage() {
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Created</dt>
         <dd style={{ margin: 0 }}>{new Date(tournament.created_at).toLocaleString()}</dd>
         <dt style={{ fontWeight: 600, marginTop: 8 }}>Description</dt>
-        <dd style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{tournament.description?.trim() ? tournament.description : '—'}</dd>
+        <dd style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{preview.description}</dd>
       </dl>
 
       <p style={{ marginTop: 20 }}>
