@@ -1,5 +1,6 @@
 """Authenticated challenge discovery for the mobile app."""
 
+import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
@@ -10,7 +11,14 @@ from sqlalchemy.orm import selectinload
 
 from app.auth import current_active_user
 from app.challenge_window import local_tournament_day_index, resolve_user_zone
+from app.content_translations import (
+    challenge_translations_map,
+    pick_challenge_text,
+    pick_tournament_text,
+    tournament_translations_map,
+)
 from app.database import get_db
+from app.http_locale import PreferredLocale
 from app.models import Post, Team, TeamTournament, Tournament, User
 from app.schemas import (
     AvailableChallengeItem,
@@ -28,6 +36,7 @@ DbSession = Annotated[AsyncSession, Depends(get_db)]
 @router.get('/challenges/available', response_model=list[AvailableChallengeItem])
 async def list_available_challenges(
     db: DbSession,
+    locale: PreferredLocale,
     user: User = Depends(current_active_user),
 ) -> list[AvailableChallengeItem]:
     """
@@ -57,6 +66,17 @@ async def list_available_challenges(
     user_tz = resolve_user_zone(db_user.timezone)
     out: list[AvailableChallengeItem] = []
 
+    challenge_ids: list[uuid.UUID] = []
+    tournament_ids: list[uuid.UUID] = []
+    for entry in db_user.team.tournament_entries:
+        if entry.tournament is None:
+            continue
+        tournament_ids.append(entry.tournament.id)
+        for c in entry.tournament.challenges:
+            challenge_ids.append(c.id)
+    cm = await challenge_translations_map(db, challenge_ids=challenge_ids)
+    tm = await tournament_translations_map(db, tournament_ids=tournament_ids)
+
     for entry in db_user.team.tournament_entries:
         tournament = entry.tournament
         active_day = local_tournament_day_index(
@@ -68,19 +88,21 @@ async def list_available_challenges(
         if active_day is None:
             continue
 
-        challenges = sorted(tournament.challenges, key=lambda c: (c.day, c.title))
+        challenges = sorted(tournament.challenges, key=lambda c: (c.day, c.id))
         for c in challenges:
             if c.day > active_day:
                 continue
             if c.id in completed_challenge_ids:
                 continue
+            tname, _ = pick_tournament_text(tm, tournament.id, locale)
+            title, desc = pick_challenge_text(cm, c.id, locale)
             out.append(
                 AvailableChallengeItem(
                     id=c.id,
                     tournament_id=tournament.id,
-                    tournament_name=tournament.name,
-                    title=c.title,
-                    description=c.description,
+                    tournament_name=tname,
+                    title=title,
+                    description=desc,
                     challenge_type=c.challenge_type.value,
                     points=c.points,
                     day=c.day,
@@ -95,6 +117,7 @@ async def list_available_challenges(
 @router.get('/challenges/joinable-tournaments', response_model=list[JoinableTournamentItem])
 async def list_joinable_tournaments(
     db: DbSession,
+    locale: PreferredLocale,
     user: User = Depends(current_active_user),
 ) -> list[JoinableTournamentItem]:
     """
@@ -116,7 +139,7 @@ async def list_joinable_tournaments(
     user_tz = resolve_user_zone(db_user.timezone)
 
     t_rows = (await db.execute(select(Tournament))).scalars().all()
-    out: list[JoinableTournamentItem] = []
+    candidates: list[Tournament] = []
     for tournament in t_rows:
         if tournament.id in enrolled_ids:
             continue
@@ -128,10 +151,22 @@ async def list_joinable_tournaments(
         )
         if active_day is None:
             continue
+        candidates.append(tournament)
+    tm = await tournament_translations_map(db, tournament_ids=[t.id for t in candidates])
+    out: list[JoinableTournamentItem] = []
+    for tournament in candidates:
+        active_day = local_tournament_day_index(
+            tournament_start=tournament.start_date,
+            tournament_length_days=tournament.length_days,
+            now_utc=now_utc,
+            user_tz=user_tz,
+        )
+        assert active_day is not None
+        tname, _ = pick_tournament_text(tm, tournament.id, locale)
         out.append(
             JoinableTournamentItem(
                 tournament_id=tournament.id,
-                tournament_name=tournament.name,
+                tournament_name=tname,
                 current_local_day=active_day,
                 length_days=tournament.length_days,
             )
@@ -144,6 +179,7 @@ async def list_joinable_tournaments(
 async def join_tournament(
     db: DbSession,
     body: JoinTournamentBody,
+    locale: PreferredLocale,
     user: User = Depends(current_active_user),
 ) -> JoinTournamentResult:
     """Enroll the user's team in a tournament that is joinable on their local calendar."""
@@ -189,4 +225,6 @@ async def join_tournament(
     db.add(TeamTournament(team_id=team.id, tournament_id=tournament.id))
     await db.flush()
     await resync_team_tournament_challenges(db, team_id=team.id, tournament_id=tournament.id)
-    return JoinTournamentResult(tournament_id=tournament.id, tournament_name=tournament.name)
+    tm = await tournament_translations_map(db, tournament_ids=[tournament.id])
+    tname, _ = pick_tournament_text(tm, tournament.id, locale)
+    return JoinTournamentResult(tournament_id=tournament.id, tournament_name=tname)

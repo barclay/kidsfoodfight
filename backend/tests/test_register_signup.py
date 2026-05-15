@@ -128,3 +128,38 @@ def test_register_invalid_invite(client: TestClient) -> None:
     r = client.post('/api/v1/auth/register', json=body)
     assert r.status_code == 400
     assert r.json()['detail'] == 'No team matches that invite code.'
+
+
+@pytest.mark.usefixtures('_require_db')
+def test_users_me_patch_language_preference(client: TestClient) -> None:
+    email = _unique_email()
+    reg = {
+        'email': email,
+        'password': 'secret1',
+        'display_name': f'Lang {uuid.uuid4().hex[:6]}',
+        'timezone': 'America/Los_Angeles',
+        'team_name': f'Family {uuid.uuid4().hex[:6]}',
+    }
+    assert client.post('/api/v1/auth/register', json=reg).status_code == 201
+    token_r = client.post(
+        '/api/v1/auth/login',
+        data={'username': email, 'password': 'secret1'},
+        headers={'Content-Type': 'application/x-www-form-urlencoded'},
+    )
+    assert token_r.status_code == 200
+    token = token_r.json()['access_token']
+    headers = {'Authorization': f'Bearer {token}'}
+
+    me0 = client.get('/api/v1/users/me', headers=headers)
+    assert me0.status_code == 200
+    assert me0.json().get('language_preference') is None
+
+    bad = client.patch('/api/v1/users/me', headers=headers, json={'language_preference': 'fr'})
+    assert bad.status_code == 422
+
+    ok = client.patch('/api/v1/users/me', headers=headers, json={'language_preference': 'es'})
+    assert ok.status_code == 200, ok.text
+    assert ok.json()['language_preference'] == 'es'
+
+    me1 = client.get('/api/v1/users/me', headers=headers)
+    assert me1.json()['language_preference'] == 'es'

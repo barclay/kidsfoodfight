@@ -7,6 +7,8 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.content_translations import challenge_translations_map, pick_challenge_text
+from app.http_locale import PreferredLocale
 from app.models import Challenge, Post, PostLike, PostPhoto, User
 from app.obscene_language import ensure_text_is_clean
 from app.schemas_admin import (
@@ -24,9 +26,11 @@ from .deps import DbSession, SuperUser
 router = APIRouter(tags=['admin'])
 
 
-async def _admin_post_detail(db: AsyncSession, post_id: uuid.UUID) -> AdminPostDetail:
+async def _admin_post_detail(
+    db: AsyncSession, post_id: uuid.UUID, locale: PreferredLocale
+) -> AdminPostDetail:
     stmt = (
-        select(Post, User.display_name, Challenge.title)
+        select(Post, User.display_name)
         .join(User, Post.user_id == User.id)
         .join(Challenge, Post.challenge_id == Challenge.id)
         .where(Post.id == post_id)
@@ -35,7 +39,9 @@ async def _admin_post_detail(db: AsyncSession, post_id: uuid.UUID) -> AdminPostD
     row = result.one_or_none()
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='Post not found')
-    post, author_display_name, challenge_title = row
+    post, author_display_name = row
+    cm = await challenge_translations_map(db, challenge_ids=[post.challenge_id])
+    challenge_title = pick_challenge_text(cm, post.challenge_id, locale)[0] or ''
 
     photos_result = await db.execute(
         select(PostPhoto.storage_url, PostPhoto.thumbnail_storage_url, PostPhoto.description)
@@ -74,6 +80,7 @@ async def _admin_post_detail(db: AsyncSession, post_id: uuid.UUID) -> AdminPostD
 async def admin_list_posts(
     db: DbSession,
     _: SuperUser,
+    locale: PreferredLocale,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     user_id: uuid.UUID | None = Query(None, description='Filter by post author'),
@@ -119,7 +126,6 @@ async def admin_list_posts(
         select(
             Post,
             User.display_name.label('author_display_name'),
-            Challenge.title.label('challenge_title'),
             photo_count_sq.label('photo_count'),
             like_count_sq.label('like_count'),
         )
@@ -146,6 +152,9 @@ async def admin_list_posts(
     result = await db.execute(stmt)
     rows = result.all()
     post_ids = [row.Post.id for row in rows]
+    ch_ids = {row.Post.challenge_id for row in rows}
+    cm = await challenge_translations_map(db, challenge_ids=ch_ids)
+    titles = {cid: pick_challenge_text(cm, cid, locale)[0] or '' for cid in ch_ids}
     preview_by_post: dict[uuid.UUID, str | None] = {}
     if post_ids:
         rn = func.row_number().over(
@@ -177,7 +186,7 @@ async def admin_list_posts(
             user_id=row.Post.user_id,
             challenge_id=row.Post.challenge_id,
             author_display_name=row.author_display_name,
-            challenge_title=row.challenge_title,
+            challenge_title=titles.get(row.Post.challenge_id, ''),
             comment=row.Post.comment,
             approved=row.Post.approved,
             created_at=row.Post.created_at,
@@ -214,8 +223,10 @@ async def admin_delete_post(db: DbSession, _: SuperUser, post_id: uuid.UUID) -> 
 
 
 @router.get('/posts/{post_id}', response_model=AdminPostDetail)
-async def admin_get_post(db: DbSession, _: SuperUser, post_id: uuid.UUID) -> AdminPostDetail:
-    return await _admin_post_detail(db, post_id)
+async def admin_get_post(
+    db: DbSession, _: SuperUser, post_id: uuid.UUID, locale: PreferredLocale
+) -> AdminPostDetail:
+    return await _admin_post_detail(db, post_id, locale)
 
 
 @router.patch('/posts/{post_id}', response_model=AdminPostDetail)
@@ -224,6 +235,7 @@ async def admin_patch_post(
     _: SuperUser,
     post_id: uuid.UUID,
     body: AdminPostPatch,
+    locale: PreferredLocale,
 ) -> AdminPostDetail:
     post = await db.get(Post, post_id)
     if post is None:
@@ -239,4 +251,4 @@ async def admin_patch_post(
         team_id = await db.scalar(select(User.team_id).where(User.id == post.user_id))
         if team_id is not None:
             await sync_team_challenge_credit(db, team_id=team_id, challenge_id=post.challenge_id)
-    return await _admin_post_detail(db, post_id)
+    return await _admin_post_detail(db, post_id, locale)

@@ -11,13 +11,13 @@ export default function App() {
   return (
     <View style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <LanguageProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <LanguageProvider>
             <UploadToastProvider>
               <Navigation />
             </UploadToastProvider>
-          </AuthProvider>
-        </LanguageProvider>
+          </LanguageProvider>
+        </AuthProvider>
         <StatusBar style="auto" />
       </SafeAreaProvider>
     </View>

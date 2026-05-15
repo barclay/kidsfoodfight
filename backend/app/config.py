@@ -59,5 +59,9 @@ class Settings(BaseSettings):
     #: Skip loading BLIP / writing ``PostPhoto.description`` (faster dev without torch).
     blip_disable: bool = Field(default=False, validation_alias='BLIP_DISABLE')
 
+    #: Anthropic API key for AI-assisted translation in the admin panel.
+    #: When unset, the /admin/translate endpoint returns 503.
+    anthropic_api_key: str | None = Field(default=None, validation_alias='ANTHROPIC_API_KEY')
+
 
 settings = Settings()

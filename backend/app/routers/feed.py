@@ -25,7 +25,9 @@ from sqlalchemy.orm import selectinload
 
 from app.auth import current_active_user
 from app.config import settings
+from app.content_translations import challenge_translations_map, pick_challenge_text
 from app.database import get_db
+from app.http_locale import PreferredLocale
 from app.obscene_language import ensure_text_is_clean
 from app.media_paths import resolved_media_file
 from app.models import Challenge, Post, PostPhoto, Team, User
@@ -74,6 +76,7 @@ def _suffix_for_upload(file: UploadFile) -> str:
 async def list_feed_posts(
     request: Request,
     db: DbSession,
+    locale: PreferredLocale,
     user: User = Depends(current_active_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
@@ -96,8 +99,8 @@ async def list_feed_posts(
     challenge_ids = {p.challenge_id for p in posts}
     user_ids = {p.user_id for p in posts}
 
-    ch_rows = await db.execute(select(Challenge.id, Challenge.title).where(Challenge.id.in_(challenge_ids)))
-    titles = {row.id: row.title for row in ch_rows.all()}
+    cm = await challenge_translations_map(db, challenge_ids=challenge_ids)
+    titles = {cid: pick_challenge_text(cm, cid, locale)[0] or 'Challenge' for cid in challenge_ids}
 
     u_result = await db.execute(
         select(User.id, User.display_name, User.profile_photo_storage_url, Team.name.label('team_name'))

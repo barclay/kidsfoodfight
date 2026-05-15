@@ -28,6 +28,7 @@ from pathlib import Path
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.media_paths import sample_posts_seed_dir
@@ -73,13 +74,21 @@ def _seed_comment(source_filename: str) -> str:
     return f'{_SEED_COMMENT_PREFIX}{source_filename}'
 
 
+def _en_challenge_title(ch: Challenge) -> str:
+    for tr in ch.translations or ():
+        if tr.locale == 'en':
+            return tr.title
+    return ''
+
+
 async def _spring_challenges(session: AsyncSession) -> list[Challenge]:
     r = await session.execute(
         select(Challenge)
         .where(Challenge.tournament_id == SPRING_FIESTA_TOURNAMENT_ID)
-        .order_by(Challenge.day.asc(), Challenge.title.asc())
+        .options(selectinload(Challenge.translations))
     )
-    rows = list(r.scalars().all())
+    rows = list(r.scalars().unique().all())
+    rows.sort(key=lambda c: (c.day, _en_challenge_title(c).lower()))
     if not rows:
         print('[seed_sample_posts] No Spring Fiesta challenges found. Run seed_spring_fiesta first.')
     return rows
@@ -236,7 +245,7 @@ async def run() -> None:
                 blip_tasks.append((ph.id, key))
                 tail = key if len(key) <= 56 else f'…{key[-52:]}'
                 print(
-                    f'  + {img.name} → {tail} · {author.display_name!r} · “{ch.title}” (day {ch.day})'
+                    f'  + {img.name} → {tail} · {author.display_name!r} · “{_en_challenge_title(ch)}” (day {ch.day})'
                 )
                 created += 1
 

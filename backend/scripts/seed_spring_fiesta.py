@@ -23,6 +23,7 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from app.content_translations import replace_challenge_translations, replace_tournament_translations
 from app.models import Challenge, ChallengeType, Post, Tournament
 
 SPRING_FIESTA_TOURNAMENT_ID = uuid.UUID('cef90879-0f14-40dd-a424-e3a6005772ed')
@@ -221,18 +222,24 @@ async def _seed(session: AsyncSession) -> None:
         session.add(
             Tournament(
                 id=SPRING_FIESTA_TOURNAMENT_ID,
-                name=SPRING_FIESTA_NAME,
-                description=SPRING_FIESTA_DESCRIPTION,
                 start_date=SPRING_FIESTA_START,
                 length_days=SPRING_FIESTA_LENGTH_DAYS,
             )
         )
         await session.flush()
+        await replace_tournament_translations(
+            session,
+            tournament_id=SPRING_FIESTA_TOURNAMENT_ID,
+            per_locale={'en': (SPRING_FIESTA_NAME, SPRING_FIESTA_DESCRIPTION)},
+        )
     else:
-        existing.name = SPRING_FIESTA_NAME
-        existing.description = SPRING_FIESTA_DESCRIPTION
         existing.start_date = SPRING_FIESTA_START
         existing.length_days = SPRING_FIESTA_LENGTH_DAYS
+        await replace_tournament_translations(
+            session,
+            tournament_id=SPRING_FIESTA_TOURNAMENT_ID,
+            per_locale={'en': (SPRING_FIESTA_NAME, SPRING_FIESTA_DESCRIPTION)},
+        )
 
     ch_count = await session.scalar(
         select(func.count())
@@ -259,15 +266,18 @@ async def _seed(session: AsyncSession) -> None:
     await session.execute(delete(Challenge).where(Challenge.tournament_id == SPRING_FIESTA_TOURNAMENT_ID))
 
     for day, title, description, ctype, points in SPRING_FIESTA_CHALLENGES:
-        session.add(
-            Challenge(
-                tournament_id=SPRING_FIESTA_TOURNAMENT_ID,
-                day=day,
-                title=title,
-                description=description,
-                challenge_type=ctype,
-                points=points,
-            )
+        ch = Challenge(
+            tournament_id=SPRING_FIESTA_TOURNAMENT_ID,
+            day=day,
+            challenge_type=ctype,
+            points=points,
+        )
+        session.add(ch)
+        await session.flush()
+        await replace_challenge_translations(
+            session,
+            challenge_id=ch.id,
+            per_locale={'en': (title, description)},
         )
 
 
