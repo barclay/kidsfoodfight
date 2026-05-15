@@ -14,7 +14,7 @@ from starlette.testclient import TestClient
 
 from app.database import AsyncSessionLocal
 from app.main import app
-from app.models import TeamTournament, Tournament, User
+from app.models import TeamTournament, Tournament, TournamentTranslation, User
 
 
 @pytest.fixture
@@ -49,8 +49,19 @@ def test_joinable_tournaments_and_join(client: TestClient) -> None:
 
     async def insert_tournament() -> str:
         async with AsyncSessionLocal() as s:
-            t = Tournament(name=f'Joinable API {uuid.uuid4().hex[:6]}', start_date=start_la, length_days=7)
+            label = f'Joinable API {uuid.uuid4().hex[:6]}'
+            t = Tournament(start_date=start_la, length_days=7)
             s.add(t)
+            await s.flush()
+            for loc in ('en', 'es'):
+                s.add(
+                    TournamentTranslation(
+                        tournament_id=t.id,
+                        locale=loc,
+                        name=label,
+                        description=None,
+                    )
+                )
             await s.commit()
             await s.refresh(t)
             return str(t.id)
