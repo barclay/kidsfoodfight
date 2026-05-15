@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -16,9 +17,6 @@ import { Colors } from '../lib/colors';
 
 type SignupMode = 'new_team' | 'invite';
 
-const PASSWORD_HINT =
-  'At least 6 characters, one letter, one digit, no spaces.';
-
 function deviceTimezone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'America/Los_Angeles';
@@ -28,6 +26,7 @@ function deviceTimezone(): string {
 }
 
 export default function SignupScreen() {
+  const { t } = useTranslation();
   const { signUp } = useAuth();
   const [mode, setMode] = useState<SignupMode>('new_team');
   const [displayName, setDisplayName] = useState('');
@@ -44,20 +43,20 @@ export default function SignupScreen() {
     const dn = displayName.trim();
     const em = email.trim();
     if (!dn || !em || !password) {
-      setError('Display name, email, and password are required.');
+      setError(t('signup.errorRequired'));
       return;
     }
     if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+      setError(t('signup.errorPasswordMismatch'));
       return;
     }
     if (mode === 'new_team') {
       if (!teamName.trim()) {
-        setError('Enter a name for your family team.');
+        setError(t('signup.errorTeamName'));
         return;
       }
     } else if (!inviteCode.trim()) {
-      setError('Enter your team invite code.');
+      setError(t('signup.errorInvite'));
       return;
     }
 
@@ -73,7 +72,7 @@ export default function SignupScreen() {
           : { invite_code: inviteCode.trim() }),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Sign up failed.');
+      setError(e instanceof Error ? e.message : t('signup.errorFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -90,7 +89,7 @@ export default function SignupScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.hint}>{PASSWORD_HINT}</Text>
+          <Text style={styles.hint}>{t('signup.passwordHint')}</Text>
 
           <View style={styles.segment}>
             <Pressable
@@ -102,7 +101,7 @@ export default function SignupScreen() {
               disabled={submitting}
             >
               <Text style={[styles.segmentText, mode === 'new_team' && styles.segmentTextActive]}>
-                New team
+                {t('signup.newTeam')}
               </Text>
             </Pressable>
             <Pressable
@@ -114,18 +113,18 @@ export default function SignupScreen() {
               disabled={submitting}
             >
               <Text style={[styles.segmentText, mode === 'invite' && styles.segmentTextActive]}>
-                Have invite
+                {t('signup.haveInvite')}
               </Text>
             </Pressable>
           </View>
 
           <View style={styles.form}>
-            <Text style={styles.label}>Display name</Text>
+            <Text style={styles.label}>{t('signup.displayName')}</Text>
             <TextInput
               style={styles.input}
               value={displayName}
               onChangeText={setDisplayName}
-              placeholder="How you appear in the app"
+              placeholder={t('signup.displayNamePlaceholder')}
               placeholderTextColor={Colors.textMuted}
               autoCapitalize="words"
               textContentType="name"
@@ -133,12 +132,12 @@ export default function SignupScreen() {
               editable={!submitting}
             />
 
-            <Text style={styles.label}>Email</Text>
+            <Text style={styles.label}>{t('signup.email')}</Text>
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={setEmail}
-              placeholder="you@family.com"
+              placeholder={t('signup.emailPlaceholder')}
               placeholderTextColor={Colors.textMuted}
               autoCapitalize="none"
               autoCorrect={false}
@@ -148,12 +147,12 @@ export default function SignupScreen() {
               editable={!submitting}
             />
 
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>{t('signup.password')}</Text>
             <TextInput
               style={styles.input}
               value={password}
               onChangeText={setPassword}
-              placeholder="Choose a password"
+              placeholder={t('signup.passwordPlaceholder')}
               placeholderTextColor={Colors.textMuted}
               secureTextEntry
               textContentType="newPassword"
@@ -161,12 +160,12 @@ export default function SignupScreen() {
               editable={!submitting}
             />
 
-            <Text style={styles.label}>Confirm password</Text>
+            <Text style={styles.label}>{t('signup.confirmPassword')}</Text>
             <TextInput
               style={styles.input}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              placeholder="Re-enter password"
+              placeholder={t('signup.confirmPlaceholder')}
               placeholderTextColor={Colors.textMuted}
               secureTextEntry
               textContentType="newPassword"
@@ -177,12 +176,12 @@ export default function SignupScreen() {
 
             {mode === 'new_team' ? (
               <>
-                <Text style={styles.label}>Family team name</Text>
+                <Text style={styles.label}>{t('signup.familyTeamName')}</Text>
                 <TextInput
                   style={styles.input}
                   value={teamName}
                   onChangeText={setTeamName}
-                  placeholder="e.g. The Lopez Crew"
+                  placeholder={t('signup.teamNamePlaceholder')}
                   placeholderTextColor={Colors.textMuted}
                   autoCapitalize="words"
                   editable={!submitting}
@@ -190,12 +189,12 @@ export default function SignupScreen() {
               </>
             ) : (
               <>
-                <Text style={styles.label}>Team invite code</Text>
+                <Text style={styles.label}>{t('signup.inviteCode')}</Text>
                 <TextInput
                   style={styles.input}
                   value={inviteCode}
                   onChangeText={setInviteCode}
-                  placeholder="14-character code from your captain"
+                  placeholder={t('signup.invitePlaceholder')}
                   placeholderTextColor={Colors.textMuted}
                   autoCapitalize="characters"
                   autoCorrect={false}
@@ -217,7 +216,7 @@ export default function SignupScreen() {
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.primaryButtonText}>Create account</Text>
+                <Text style={styles.primaryButtonText}>{t('signup.createAccount')}</Text>
               )}
             </Pressable>
           </View>

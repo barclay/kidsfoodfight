@@ -8,8 +8,17 @@ module.exports = ({ config }) => {
     typeof process.env.EXPO_PUBLIC_API_URL === 'string' ? process.env.EXPO_PUBLIC_API_URL.trim() : '';
   const apiUrl = raw.length > 0 ? raw : 'http://localhost:8000/api/v1';
 
+  const plugins = Array.isArray(config.plugins) ? [...config.plugins] : [];
+  const hasLocalization = plugins.some(
+    (p) => p === 'expo-localization' || (Array.isArray(p) && p[0] === 'expo-localization'),
+  );
+  if (!hasLocalization) {
+    plugins.push('expo-localization');
+  }
+
   return {
     ...config,
+    plugins,
     extra: {
       ...(config.extra && typeof config.extra === 'object' ? config.extra : {}),
       apiUrl,

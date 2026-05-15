@@ -1,0 +1,172 @@
+{
+  "brand": {
+    "title": "Kids Food Fight"
+  },
+  "tabs": {
+    "home": "Home",
+    "challenges": "Challenges",
+    "leaderboard": "Leaderboard",
+    "profile": "Profile"
+  },
+  "navigation": {
+    "createAccount": "Create account",
+    "challenge": "Challenge",
+    "submitProof": "Submit proof",
+    "stickers": "Stickers",
+    "cropPhoto": "Crop photo"
+  },
+  "common": {
+    "retry": "Tap to retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "edit": "Edit",
+    "day": "Day {{day}}",
+    "points": "{{count}} pts"
+  },
+  "challengeTypes": {
+    "food": "Food",
+    "fitness": "Fitness",
+    "shopping": "Shopping",
+    "game": "Game"
+  },
+  "language": {
+    "sectionTitle": "Language",
+    "system": "System default",
+    "english": "English",
+    "spanish": "Spanish"
+  },
+  "login": {
+    "tagline": "Sign in to continue",
+    "email": "Email",
+    "password": "Password",
+    "emailPlaceholder": "you@family.com",
+    "passwordPlaceholder": "Password",
+    "signIn": "Sign in",
+    "createAccount": "Create an account",
+    "errorMissing": "Enter your email and password.",
+    "errorFailed": "Sign in failed."
+  },
+  "signup": {
+    "passwordHint": "At least 6 characters, one letter, one digit, no spaces.",
+    "newTeam": "New team",
+    "haveInvite": "Have invite",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "How you appear in the app",
+    "email": "Email",
+    "emailPlaceholder": "you@family.com",
+    "password": "Password",
+    "passwordPlaceholder": "Choose a password",
+    "confirmPassword": "Confirm password",
+    "confirmPlaceholder": "Re-enter password",
+    "familyTeamName": "Family team name",
+    "teamNamePlaceholder": "e.g. The Lopez Crew",
+    "inviteCode": "Team invite code",
+    "invitePlaceholder": "14-character code from your captain",
+    "createAccount": "Create account",
+    "errorRequired": "Display name, email, and password are required.",
+    "errorPasswordMismatch": "Passwords do not match.",
+    "errorTeamName": "Enter a name for your family team.",
+    "errorInvite": "Enter your team invite code.",
+    "errorFailed": "Sign up failed."
+  },
+  "home": {
+    "errorLoad": "Could not load feed.",
+    "errorMore": "Could not load more.",
+    "emptyTitle": "No posts yet",
+    "emptyBody": "Approved challenge posts will show up here."
+  },
+  "challenges": {
+    "title": "Challenges",
+    "errorLoad": "Could not load challenges.",
+    "joinFailedTitle": "Could not join",
+    "joinFailedBody": "Could not join tournament.",
+    "emptyRunningTitle": "A tournament is running",
+    "emptyRunningBody": "Your team can join an active event below to unlock challenges. Completed challenges disappear from this list. Days follow your profile time zone.",
+    "emptyIdleTitle": "No challenges right now",
+    "emptyIdleBody": "Join a team enrolled in an active tournament to see challenges here. Completed challenges disappear from this list. Days follow your profile time zone.",
+    "joinTournament": "Join tournament",
+    "dayOfTotal": "Day {{current}} of {{total}}"
+  },
+  "challengeDetail": {
+    "noInstructions": "No extra instructions — show us what you did!",
+    "letsGo": "Let's go!"
+  },
+  "challengePost": {
+    "hint": "Add up to {{max}} photos and/or a caption. When you add photos, you will place optional face stickers on the next screen before submitting. Caption-only posts skip that step.",
+    "choosePhotos": "Choose photos",
+    "takePhoto": "Take photo",
+    "photoCount": "{{current}}/{{max}} photos",
+    "captionLabel": "Caption (optional)",
+    "captionPlaceholder": "Tell us what you did…",
+    "continueStickers": "Continue — stickers",
+    "submitCaptionOnly": "Submit caption only",
+    "errorLibrary": "Photo library access is needed to add images.",
+    "errorCamera": "Camera access is needed to take a photo.",
+    "errorCaptionOrPhotos": "Add a short note for a text-only post, or add photos to continue to stickers.",
+    "cameraWebTitle": "Camera",
+    "cameraWebBody": "Use a device with the Expo app to take a photo, or choose from the library on web.",
+    "uploadTitle": "Posting your challenge",
+    "uploadSuccess": "Submission sent"
+  },
+  "challengeEditor": {
+    "sub": "Choose a sticker, and tap to place it",
+    "clearPhoto": "Clear this photo",
+    "submit": "Submit challenge",
+    "uploadTitle": "Posting your challenge",
+    "uploadSuccess": "Submission sent"
+  },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "subtitle": "Active tournaments your team is enrolled in",
+    "errorLoad": "Could not load leaderboard.",
+    "emptyTitle": "No active tournament leaderboard",
+    "emptyBody": "When your team is enrolled in a tournament that is running on your profile time zone, team rankings appear here. Same active window as the Challenges tab.",
+    "noTeams": "No teams enrolled yet.",
+    "colRank": "#",
+    "colTeam": "Team",
+    "colPoints": "Points"
+  },
+  "family": {
+    "title": "My Family",
+    "comingSoon": "Family features coming soon!"
+  },
+  "profile": {
+    "title": "Profile",
+    "timezone": "Time zone: {{tz}}",
+    "changePhoto": "Change profile photo",
+    "refresh": "Refresh profile",
+    "signOut": "Sign out",
+    "permLibraryTitle": "Permission needed",
+    "permLibraryBody": "Photo library access is required to choose a picture.",
+    "permCameraTitle": "Permission needed",
+    "permCameraBody": "Camera access is required to take a picture.",
+    "cameraWebTitle": "Camera",
+    "cameraWebBody": "Taking a photo is not supported in the browser. Use a device with the app installed.",
+    "photoSourceTitle": "Profile photo",
+    "photoSourceMessage": "How would you like to add a photo?",
+    "chooseLibrary": "Choose from library",
+    "takePhoto": "Take photo",
+    "uploadTitle": "Uploading profile photo",
+    "uploadSuccess": "Profile photo updated"
+  },
+  "crop": {
+    "hint": "Pinch to zoom inside the square. Drag the photo to frame your shot.",
+    "readSizeError": "Could not read image size.",
+    "uploadFailed": "Upload failed."
+  },
+  "feed": {
+    "now": "now",
+    "minutesShort": "{{count}}m",
+    "hoursShort": "{{count}}h",
+    "daysShort": "{{count}}d",
+    "pending": "Pending",
+    "textPost": "Text post",
+    "like": "Like post",
+    "unlike": "Unlike post",
+    "likesCount": "{{count}} likes"
+  },
+  "uploadToast": {
+    "done": "Done",
+    "failed": "Upload failed"
+  }
+}

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Image,
@@ -12,21 +13,10 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import type { FeedPostItem } from '../types/feed';
+import { useLanguage } from '../context/LanguageContext';
+import { formatFeedTimestamp } from '../lib/formatFeedTimestamp';
 import { Colors } from '../lib/colors';
 import { likeFeedPost, unlikeFeedPost } from '../lib/feedApi';
-
-function formatFeedTimestamp(iso: string): string {
-  const d = new Date(iso);
-  const diffMs = Date.now() - d.getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d`;
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
 
 function formatAuthorAttribution(item: FeedPostItem): string {
   const name = item.author_display_name.trim() || '?';
@@ -42,6 +32,8 @@ type Props = {
 };
 
 export function FeedPostCard({ item, authHeader, token, onLikePatch }: Props) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
   const { width: screenWidth } = useWindowDimensions();
   const photos = useMemo(
     () => [...item.photos].sort((a, b) => a.sort_order - b.sort_order),
@@ -103,10 +95,10 @@ export function FeedPostCard({ item, authHeader, token, onLikePatch }: Props) {
         </View>
         {!item.approved ? (
           <View style={styles.pendingBadge}>
-            <Text style={styles.pendingBadgeText}>Pending</Text>
+            <Text style={styles.pendingBadgeText}>{t('feed.pending')}</Text>
           </View>
         ) : null}
-        <Text style={styles.time}>{formatFeedTimestamp(item.created_at)}</Text>
+        <Text style={styles.time}>{formatFeedTimestamp(item.created_at, t, language)}</Text>
       </View>
 
       {photos.length > 0 ? (
@@ -150,7 +142,7 @@ export function FeedPostCard({ item, authHeader, token, onLikePatch }: Props) {
         </View>
       ) : (
         <View style={[styles.textOnlyMedia, { minHeight: Math.min(120, mediaHeight * 0.35) }]}>
-          <Text style={styles.textOnlyLabel}>Text post</Text>
+          <Text style={styles.textOnlyLabel}>{t('feed.textPost')}</Text>
         </View>
       )}
 
@@ -162,7 +154,7 @@ export function FeedPostCard({ item, authHeader, token, onLikePatch }: Props) {
               disabled={!token || likeBusy}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 8 }}
               accessibilityRole="button"
-              accessibilityLabel={item.liked_by_me ? 'Unlike post' : 'Like post'}
+              accessibilityLabel={item.liked_by_me ? t('feed.unlike') : t('feed.like')}
               style={({ pressed }) => [styles.likePressable, pressed && token ? { opacity: 0.7 } : null]}
             >
               {likeBusy ? (
@@ -178,7 +170,7 @@ export function FeedPostCard({ item, authHeader, token, onLikePatch }: Props) {
               )}
             </Pressable>
             {item.like_count > 0 ? (
-              <Text style={styles.likeCount} accessibilityLabel={`${item.like_count} likes`}>
+              <Text style={styles.likeCount} accessibilityLabel={t('feed.likesCount', { count: item.like_count })}>
                 {item.like_count}
               </Text>
             ) : null}

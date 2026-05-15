@@ -1,6 +1,7 @@
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage, type LanguagePreference } from '../context/LanguageContext';
 import { mediaUrlForStorageKey } from '../lib/mediaUrl';
 import type { ProfileStackParamList } from '../navigation/types';
 import { Colors } from '../lib/colors';
@@ -20,7 +22,9 @@ import { Colors } from '../lib/colors';
 type Nav = NativeStackNavigationProp<ProfileStackParamList, 'ProfileHome'>;
 
 export default function ProfileHomeScreen() {
+  const { t } = useTranslation();
   const navigation = useNavigation<Nav>();
+  const { preference, setPreference } = useLanguage();
   const { token, me, refreshMe, signOut } = useAuth();
 
   const goToCrop = (imageUri: string) => {
@@ -33,7 +37,7 @@ export default function ProfileHomeScreen() {
     }
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission needed', 'Photo library access is required to choose a picture.');
+      Alert.alert(t('profile.permLibraryTitle'), t('profile.permLibraryBody'));
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -50,12 +54,12 @@ export default function ProfileHomeScreen() {
       return;
     }
     if (Platform.OS === 'web') {
-      Alert.alert('Camera', 'Taking a photo is not supported in the browser. Use a device with the app installed.');
+      Alert.alert(t('profile.cameraWebTitle'), t('profile.cameraWebBody'));
       return;
     }
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Permission needed', 'Camera access is required to take a picture.');
+      Alert.alert(t('profile.permCameraTitle'), t('profile.permCameraBody'));
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -72,10 +76,10 @@ export default function ProfileHomeScreen() {
       void pickFromLibrary();
       return;
     }
-    Alert.alert('Profile photo', 'How would you like to add a photo?', [
-      { text: 'Choose from library', onPress: () => void pickFromLibrary() },
-      { text: 'Take photo', onPress: () => void takePhoto() },
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('profile.photoSourceTitle'), t('profile.photoSourceMessage'), [
+      { text: t('profile.chooseLibrary'), onPress: () => void pickFromLibrary() },
+      { text: t('profile.takePhoto'), onPress: () => void takePhoto() },
+      { text: t('common.cancel'), style: 'cancel' },
     ]);
   };
 
@@ -89,7 +93,7 @@ export default function ProfileHomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
+        <Text style={styles.title}>{t('profile.title')}</Text>
       </View>
 
       <View style={styles.body}>
@@ -109,19 +113,34 @@ export default function ProfileHomeScreen() {
                 </View>
               )}
               <View style={styles.avatarBadge}>
-                <Text style={styles.avatarBadgeText}>Edit</Text>
+                <Text style={styles.avatarBadgeText}>{t('common.edit')}</Text>
               </View>
             </Pressable>
 
             <Text style={styles.displayName}>{me.display_name}</Text>
             <Text style={styles.email}>{me.email}</Text>
-            <Text style={styles.meta}>Time zone: {me.timezone}</Text>
+            <Text style={styles.meta}>{t('profile.timezone', { tz: me.timezone })}</Text>
+
+            <Text style={styles.langLabel}>{t('language.sectionTitle')}</Text>
+            <View style={styles.langRow}>
+              {(['system', 'en', 'es'] as LanguagePreference[]).map((key) => (
+                <Pressable
+                  key={key}
+                  style={[styles.langBtn, preference === key && styles.langBtnActive]}
+                  onPress={() => void setPreference(key)}
+                >
+                  <Text style={[styles.langBtnText, preference === key && styles.langBtnTextActive]}>
+                    {key === 'system' ? t('language.system') : key === 'en' ? t('language.english') : t('language.spanish')}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
 
             <Pressable style={styles.secondaryBtn} onPress={choosePhotoSource}>
-              <Text style={styles.secondaryBtnText}>Change profile photo</Text>
+              <Text style={styles.secondaryBtnText}>{t('profile.changePhoto')}</Text>
             </Pressable>
             <Pressable style={styles.secondaryBtn} onPress={() => void refreshMe()}>
-              <Text style={styles.secondaryBtnText}>Refresh profile</Text>
+              <Text style={styles.secondaryBtnText}>{t('profile.refresh')}</Text>
             </Pressable>
           </>
         )}
@@ -132,7 +151,7 @@ export default function ProfileHomeScreen() {
           style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed]}
           onPress={() => void signOut()}
         >
-          <Text style={styles.signOutText}>Sign out</Text>
+          <Text style={styles.signOutText}>{t('profile.signOut')}</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -215,7 +234,41 @@ const styles = StyleSheet.create({
   meta: {
     fontSize: 14,
     color: Colors.textMuted,
+    marginBottom: 12,
+  },
+  langLabel: {
+    alignSelf: 'stretch',
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginBottom: 8,
+  },
+  langRow: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    overflow: 'hidden',
     marginBottom: 20,
+  },
+  langBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+  langBtnActive: {
+    backgroundColor: Colors.orange,
+  },
+  langBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  langBtnTextActive: {
+    color: '#fff',
   },
   secondaryBtn: {
     alignSelf: 'stretch',

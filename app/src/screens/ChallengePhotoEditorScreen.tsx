@@ -1,5 +1,6 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FlatList,
   Image,
@@ -25,6 +26,7 @@ type Props = NativeStackScreenProps<ChallengesStackParamList, 'ChallengePhotoEdi
 const DEFAULT_WIDTH_FR = 0.2;
 
 export default function ChallengePhotoEditorScreen({ navigation, route }: Props) {
+  const { t } = useTranslation();
   const { challengeId, challengeTitle, imageUris, comment } = route.params;
   const { width: screenW, height: screenH } = useWindowDimensions();
   const { token } = useAuth();
@@ -146,8 +148,8 @@ export default function ChallengePhotoEditorScreen({ navigation, route }: Props)
     );
     const overlays: ChallengeOverlaysPayload = { version: 1, photos };
     enqueueUpload({
-      title: 'Posting your challenge',
-      successMessage: 'Submission sent',
+      title: t('challengeEditor.uploadTitle'),
+      successMessage: t('challengeEditor.uploadSuccess'),
       run: (onProgress) =>
         createFeedPost(
           token,
@@ -161,7 +163,7 @@ export default function ChallengePhotoEditorScreen({ navigation, route }: Props)
         ),
     });
     navigation.popToTop();
-  }, [token, imageUris, stickersByPhoto, challengeId, comment, enqueueUpload, navigation]);
+  }, [token, imageUris, stickersByPhoto, challengeId, comment, enqueueUpload, navigation, t]);
 
   const onPhotoPress = useCallback(
     (idx: number, lx: number, ly: number, uri: string) => {
@@ -264,7 +266,7 @@ export default function ChallengePhotoEditorScreen({ navigation, route }: Props)
         <Text style={styles.title} numberOfLines={1}>
           {challengeTitle.length > 36 ? `${challengeTitle.slice(0, 36)}…` : challengeTitle}
         </Text>
-        <Text style={styles.sub}>Choose a sticker, and tap to place it</Text>
+        <Text style={styles.sub}>{t('challengeEditor.sub')}</Text>
       </View>
 
       <View
@@ -319,10 +321,10 @@ export default function ChallengePhotoEditorScreen({ navigation, route }: Props)
 
       <View style={styles.toolbar}>
         <Pressable style={styles.secondary} onPress={clearCurrentPhoto}>
-          <Text style={styles.secondaryText}>Clear this photo</Text>
+          <Text style={styles.secondaryText}>{t('challengeEditor.clearPhoto')}</Text>
         </Pressable>
         <Pressable style={styles.primary} onPress={submit}>
-          <Text style={styles.primaryText}>Submit challenge</Text>
+          <Text style={styles.primaryText}>{t('challengeEditor.submit')}</Text>
         </Pressable>
       </View>
     </SafeAreaView>

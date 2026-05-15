@@ -1,8 +1,10 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useTranslation } from 'react-i18next';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { Colors } from '../lib/colors';
 import ChallengesStack from './ChallengesStack';
 import type { RootStackParamList } from './types';
@@ -30,6 +32,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
 }
 
 function MainTabs() {
+  const { t } = useTranslation();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -49,10 +52,18 @@ function MainTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Challenges" component={ChallengesStack} />
-      <Tab.Screen name="Leaderboard" component={LeaderboardScreen} />
-      <Tab.Screen name="Profile" component={ProfileStack} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ tabBarLabel: t('tabs.home') }} />
+      <Tab.Screen
+        name="Challenges"
+        component={ChallengesStack}
+        options={{ tabBarLabel: t('tabs.challenges') }}
+      />
+      <Tab.Screen
+        name="Leaderboard"
+        component={LeaderboardScreen}
+        options={{ tabBarLabel: t('tabs.leaderboard') }}
+      />
+      <Tab.Screen name="Profile" component={ProfileStack} options={{ tabBarLabel: t('tabs.profile') }} />
     </Tab.Navigator>
   );
 }
@@ -75,9 +86,11 @@ const bootStyles = StyleSheet.create({
 });
 
 export default function Navigation() {
-  const { token, isReady } = useAuth();
+  const { t } = useTranslation();
+  const { token, isReady: authReady } = useAuth();
+  const { isReady: languageReady } = useLanguage();
 
-  if (!isReady) {
+  if (!authReady || !languageReady) {
     return <BootSplash />;
   }
 
@@ -97,7 +110,7 @@ export default function Navigation() {
               component={SignupScreen}
               options={{
                 headerShown: true,
-                title: 'Create account',
+                title: t('navigation.createAccount'),
                 headerStyle: { backgroundColor: Colors.surface },
                 headerTintColor: Colors.orange,
                 headerTitleStyle: { fontWeight: '700' },
